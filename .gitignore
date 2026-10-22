@@ -1,0 +1,47 @@
+# Workflow temporary files
+.agents/stage*-commit.sh
+.agents/stage*-git-commit.py
+.agents/tasks/*-review.json
+.agents/tasks/*-review.md
+.agents/tasks/*-completion.md
+.agents/tasks/STAGE*_COMPLETE_README.md
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# FPGA vendor files
+fpga/project/*.log
+fpga/project/*.rpt
+fpga/project/work/
+fpga/project/simulation/
+
+# Compiled outputs
+*.o
+*.elf
+*.hex
+*.bin.tmp
+firmware/enigma_shrike/build/
+
+# Simulation outputs
+fpga/sim/*.vcd
+fpga/sim/*.out
+fpga/sim/*.log
