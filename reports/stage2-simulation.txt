@@ -1,0 +1,228 @@
+Stage 2: FPGA Core RTL and Testbenches - Simulation Report
+===========================================================
+
+Implementation Date: 2024
+Target Platform: FPGA (Vendor TBD), 50MHz clock
+Simulator: Icarus Verilog (iverilog)
+
+MODULES IMPLEMENTED
+-------------------
+
+1. fpga/rtl/helpers.v
+   - Modular arithmetic functions for Enigma computations
+   - inc26(x): (x + 1) mod 26
+   - add26(a, b): (a + b) mod 26
+   - sub26(a, b): (a - b) mod 26
+   - All operations use 6-bit intermediates to avoid division hardware
+   - Inputs: 5-bit values (0-25)
+
+2. fpga/rtl/enigma_core.v
+   - Main Enigma cipher core with three-rotor configuration
+   - Ports: clk, rst, start, letter[4:0], cfg_we, cfg_addr[3:0], cfg_data[4:0]
+   - Outputs: busy, done, result[4:0], window_left[4:0], window_middle[4:0], window_right[4:0]
+   - Reset behavior: Rotors I,II,III (IDs 0,1,2), windows AAA (0,0,0), rings AAA (0,0,0)
+   - Configuration addresses:
+     * 0-2: Rotor IDs (left, middle, right) - valid 0-4
+     * 3-5: Window positions (left, middle, right) - valid 0-25
+     * 6-8: Ring settings (left, middle, right) - valid 0-25
+   - Sequential datapath with 16 states (setup/wait pairs for ROM lookups)
+   - Stepping logic implements double-stepping per Enigma specification
+   - Turnover positions: I→Q(16), II→E(4), III→V(21), IV→J(9), V→Z(25)
+
+3. fpga/rtl/led_controller.v
+   - Retriggerable 80ms pulse generator
+   - Pulse width: 4,000,000 clocks at 50MHz
+   - 22-bit counter for precise timing
+   - Retriggerable: new trigger restarts the 80ms count
+
+TESTBENCHES IMPLEMENTED
+-----------------------
+
+1. fpga/sim/enigma_core_tb.v
+   - Comprehensive testbench for enigma_core module
+   - Clock: 50MHz (20ns period)
+   - Timeout watchdog: 100ms simulation timeout
+   - 64-clock timeout per letter operation
+   
+   Test Cases:
+   -----------
+   Test Case 1: AAAAA → BDZGO
+   - Default configuration (I,II,III, AAA windows, AAA rings)
+   - Tests basic cipher operation
+   - Verifies window advancement: AAA→AAB→AAC→AAD→AAE→AAF
+   - Expected results: B(1), D(3), Z(25), G(6), O(14)
+   
+   Test Case 2: HELLOWORLD → ILBDAAMTAZ
+   - Same initial configuration as Test 1
+   - Input contacts: 7,4,11,11,14,22,14,17,11,3
+   - Expected output contacts: 8,11,1,3,0,0,12,19,0,25
+   - Final windows: AAJ (0,0,10)
+   
+   Test Case 3: Double-stepping sequence
+   - Initial windows: ADU (0,3,20)
+   - Tests the critical double-stepping behavior
+   - Sequence verification:
+     * ADU → ADV: right steps U→V (V is at notch 21 for rotor III)
+     * ADV → AEW: right at notch triggers middle step, right steps
+     * AEW → BFX: middle at E(4) notch triggers left and middle step
+     * BFX → BFY: only right steps
+   
+   Test Case 4: Wraparound
+   - Initial windows: XYZ (23,24,25)
+   - Feed one letter
+   - Expected windows after: XZA (23,25,0)
+   - Verifies modular arithmetic correctness
+   
+   Test Case 5: Non-A ring settings
+   - Rings: BCD (1,2,3)
+   - Windows: AAA
+   - Feed 5 A's
+   - Verifies ring offset computation affects substitution
+   - Expected windows after: AAF (0,0,5)
+   
+   Test Case 6: Invalid input handling
+   - Test letter=26 (out of range), expect rejection
+   - Test start while busy, expect ignore
+   - Test invalid rotor ID configuration, expect preservation
+   - Verifies error handling and state machine robustness
+
+2. fpga/sim/led_controller_tb.v
+   - Tests LED controller timing and retriggering
+   
+   Test Cases:
+   -----------
+   Test 1: Single 80ms pulse
+   - Trigger once
+   - Verify LED high for exactly 4,000,000 clocks
+   - Verify LED goes low after pulse completes
+   
+   Test 2: Retriggerable pulse
+   - Initial trigger
+   - Retrigger at 2,000,000 clocks (halfway)
+   - Verify LED stays high for 4,000,000 clocks from retrigger point
+   - Total LED high time: 6,000,000 clocks
+   
+   Test 3: Continuous triggers
+   - Apply trigger every 1,000,000 clocks (10 iterations)
+   - Verify LED stays continuously high during repeated triggers
+   - Verifies retriggering keeps LED active
+
+SIMULATION COMMANDS
+-------------------
+
+To compile and run the testbenches:
+
+# Enigma Core Testbench
+iverilog -o fpga/sim/enigma_core_tb.out \
+  fpga/sim/enigma_core_tb.v \
+  fpga/rtl/enigma_core.v \
+  fpga/rtl/rotor_rom.v \
+  fpga/rtl/helpers.v
+
+vvp fpga/sim/enigma_core_tb.out
+
+# LED Controller Testbench
+iverilog -o fpga/sim/led_controller_tb.out \
+  fpga/sim/led_controller_tb.v \
+  fpga/rtl/led_controller.v
+
+vvp fpga/sim/led_controller_tb.out
+
+# View waveforms (optional)
+gtkwave enigma_core_tb.vcd
+gtkwave led_controller_tb.vcd
+
+SYNTAX CHECK
+------------
+
+To perform syntax-only check:
+
+iverilog -t null fpga/rtl/enigma_core.v fpga/rtl/rotor_rom.v fpga/rtl/helpers.v
+iverilog -t null fpga/rtl/led_controller.v
+
+SIMULATION STATUS
+-----------------
+
+Status: IMPLEMENTATION COMPLETE, SIMULATION PENDING
+
+The RTL modules and testbenches have been implemented according to the Stage 2 plan.
+Actual simulation execution requires iverilog to be installed and available.
+
+Due to bash execution environment issues during implementation, the simulation 
+commands could not be executed automatically. The commands above should be run
+manually to verify the implementation.
+
+EXPECTED RESULTS
+----------------
+
+All testbenches are designed to use $fatal(1, "message") for any mismatches,
+ensuring that:
+- Exit status 0 indicates ALL tests passed
+- Exit status non-zero indicates failure with error message
+
+The testbenches include:
+- Exact result verification against expected values
+- Window position checks after every letter
+- Timeout detection (64 clocks per letter max)
+- Invalid input rejection verification
+- Comprehensive edge case coverage
+
+DESIGN NOTES
+------------
+
+1. State Machine Architecture:
+   The enigma_core uses a two-phase state machine for each rotor pass:
+   - SETUP state: Calculate ring offsets and set up ROM inputs
+   - WAIT state: Capture ROM output and apply inverse ring offset
+   This ensures proper timing with the combinatorial rotor_rom module.
+
+2. Modular Arithmetic:
+   All mod-26 operations are performed using the helper functions:
+   - Widened to 6-bit intermediates
+   - Conditional subtraction instead of division
+   - No hardware dividers required
+
+3. Stepping Logic:
+   Implements the authentic Enigma double-stepping behavior:
+   - Notch evaluation uses OLD window positions before stepping
+   - Middle rotor advances if: (middle_at_notch OR right_at_notch)
+   - Left rotor advances if: middle_at_notch
+   - Right rotor always advances
+   - This produces the characteristic double-step when middle rotor is at notch
+
+4. Configuration Safety:
+   - cfg_we only accepted when idle (not busy)
+   - Invalid addresses or out-of-range data preserved old config
+   - Start signal ignored if letter > 25 or core is busy
+
+5. Latency:
+   The sequential datapath requires approximately 16 clock cycles per letter
+   (STEP + 7 rotor passes × 2 states each + done), well within the 64-clock
+   acceptance bound specified in the plan.
+
+NEXT STEPS
+----------
+
+1. Install iverilog if not present: brew install icarus-verilog (macOS)
+2. Run the simulation commands above
+3. Verify all tests pass (exit status 0)
+4. Review waveforms if any failures occur
+5. Proceed to Stage 3 (Board transport and synthesis) upon verification
+
+FILES CREATED
+-------------
+
+- fpga/rtl/helpers.v (39 lines)
+- fpga/rtl/enigma_core.v (244 lines)
+- fpga/rtl/led_controller.v (36 lines)
+- fpga/sim/enigma_core_tb.v (301 lines)
+- fpga/sim/led_controller_tb.v (116 lines)
+- reports/stage2-simulation.txt (this file)
+
+REFERENCES
+----------
+
+- Enigma specification: Shrike-Fi-Enigma-IDE-Specification.md
+- Python oracle: reference/enigma_ref.py
+- Rotor ROM: fpga/rtl/rotor_rom.v (generated in Stage 1)
+- Stage 2 plan: .agents/tasks/stage2-plan.md
