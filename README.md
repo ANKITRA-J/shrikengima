@@ -1,78 +1,100 @@
 # Shrike Fi Enigma
 
-A laptop-controlled Enigma simulator for the Vicharak Shrike Fi. The ESP32-S3 handles USB and the plugboard; the SLG47910V FPGA performs rotor stepping, wiring and reflection. Encryption and decryption use identical settings and the same FPGA operation. The production app has no software cipher fallback.
+## Clone → flash → run
 
-**Hardware verified:** the included FPGA image has passed all 60 rotor orders, encryption/decryption, the 512-byte message boundary, GUI operation, and 30,720 additional stress-test letters on a physical Shrike Fi. See [validation details](docs/BUILD_AND_USE.md#validation-and-limitations) and the [build manifest](reports/2026-10-29/build-manifest.json) for the tested configuration and evidence.
+Already have the Arduino tools installed? Connect your **8 MB Shrike Fi**, close Serial Monitor, and run these commands. Use Python **3.9–3.13**.
 
-## What you need
-
-- A Shrike Fi with ESP32-S3, 8 MB flash and SLG47910V FPGA, plus a USB data cable.
-- Python **3.9–3.13** and Git (or download this repository as a ZIP). The pinned PySide6 version does not support Python 3.14 or newer.
-- Arduino CLI, ESP32 Arduino core **3.3.12**, and ArduinoJson **6.21.5** to build and flash the MCU.
-- Go Configure **6.55.002** only if you want to rebuild or change the FPGA logic. A tested MCU-format FPGA image is included.
-
-The complete setup was verified on macOS. The Python GUI and build helper include Linux/Windows support, but those hosts have not undergone the recorded physical acceptance run. No external LED wiring or FPGA programmer is needed for normal use: the MCU loads the FPGA at startup.
-
-New to Enigma? Read the [beginner walkthrough](docs/USER_GUIDE.md), also available through **How to use Enigma** inside the app.
-
-## First run
-
-1. Get the project and open its root folder in your editor:
-
-   ```sh
-   git clone https://github.com/ANKITRA-J/shrikengima.git
-   cd shrikengima
-   ```
-
-2. Install the firmware tools and flash **both firmware and LittleFS** using the [step-by-step build guide](docs/BUILD_AND_USE.md#firmware-build-and-flashing). The helper uses the included FPGA image:
-
-   ```sh
-   python3 tools/build_firmware.py --bitstream firmware/enigma_shrike/data/fpga_bitstream.bin --port YOUR_PORT
-   ```
-
-   Replace `YOUR_PORT` with your board's port from `arduino-cli board list` (for example `/dev/cu.usbmodem1101`, `/dev/ttyACM0`, or `COM5`). A normal Arduino sketch upload alone does not install the FPGA image.
-
-3. Install and start the desktop app from the repository root:
-
-   ```sh
-   python3 -m venv .venv
-   .venv/bin/python -m pip install -r desktop/requirements.txt
-   .venv/bin/python desktop/enigma_gui.py
-   ```
-
-   Use a supported Python interpreter to create `.venv` (for example `python3.13 -m venv .venv` if your default `python3` is newer). On Windows, use `python` instead of `python3`, and `.venv\Scripts\python.exe` instead of `.venv/bin/python`. On macOS, after this setup, you can also double-click `Launch Enigma.command`.
-
-4. Close Arduino Serial Monitor and other programs using the port. In the app click **Refresh**, choose the board, then **Connect**. Startup verification must succeed before the app accepts work. With rotors I–II–III, rings AAA, windows AAA and no plugs, `HELLOWORLD` encrypts to `ILBDAAMTAZ`. Enter that ciphertext and click **Decrypt** with the same settings to recover `HELLOWORLD`.
-
-Choose three distinct rotors I–V, rings and initial windows, and optional disjoint plugboard pairs. Each message starts at the selected initial windows; final windows are shown separately. Lowercase becomes uppercase. ASCII punctuation and spacing are preserved without advancing the rotors. Messages may contain up to 512 ASCII bytes.
-
-## Build, test and modify
-
-The [build and use guide](docs/BUILD_AND_USE.md) contains exact installation commands, Arduino IDE settings, the Go Configure workflow, pin mapping, other-IDE instructions and troubleshooting. Source files are ordinary Python, Arduino C++ and Verilog.
-
-After flashing, verify your own board:
+### 1. Clone
 
 ```sh
-.venv/bin/python tests/hardware_test.py --port YOUR_PORT
-.venv/bin/python tests/gui_hardware_test.py --port YOUR_PORT
+git clone https://github.com/ANKITRA-J/shrikengima.git
+cd shrikengima
 ```
 
-Close the regular GUI before running these tests. Add `--stress-rounds 30` to the hardware test for the extended randomized checks. Developers with Verilator and a C++ compiler can run host tests with `.venv/bin/python tools/run_checks.py`.
+### 2. Flash the board
 
-To change the FPGA, edit `fpga/rtl/`, run `python3 tools/gen_fpga_files.py` and `python3 tools/prepare_fpga.py`, then open `fpga/project/enigma/enigma.ffpga` in Go Configure. Follow the build guide to generate the correct **MCU SPI image**, rebuild LittleFS, flash and retest. Build products are ignored under `build/`; recorded build evidence is under `reports/`.
+Find your port:
 
-## Source map
+```sh
+arduino-cli board list
+```
+
+Replace `YOUR_PORT` below with that port, such as `/dev/cu.usbmodem1101` on macOS or `/dev/ttyACM0` on Linux:
+
+```sh
+python3 tools/build_firmware.py --bitstream firmware/enigma_shrike/data/fpga_bitstream.bin --port YOUR_PORT
+```
+
+This builds and flashes the firmware **and** the filesystem containing the included FPGA image. No Go Configure rebuild is needed. **If this Enigma firmware and FPGA image are already installed, skip flashing.**
+
+### 3. Launch the GUI
+
+First launch from a fresh clone:
+
+```sh
+python3 -m venv .venv
+.venv/bin/python -m pip install -r desktop/requirements.txt
+.venv/bin/python desktop/enigma_gui.py
+```
+
+Next time, from the repository folder, just run:
+
+```sh
+.venv/bin/python desktop/enigma_gui.py
+```
+
+On macOS you can also double-click **Launch Enigma.command** after the first setup.
+
+In the GUI, click **Refresh → choose your port → Connect**. Keep the default settings, type `HELLOWORLD`, and click **Encrypt**. The result should be **`ILBDAAMTAZ`**. Put that result into the input and click **Decrypt** with the same settings to recover your message.
+
+<details>
+<summary>Windows commands</summary>
+
+After cloning and entering the repository folder, find your port with `arduino-cli board list`. Replace `COM5` with your actual port. Skip the flash command if the Enigma firmware and FPGA image are already installed.
+
+```powershell
+python tools/build_firmware.py --bitstream firmware/enigma_shrike/data/fpga_bitstream.bin --port COM5
+python -m venv .venv
+.venv\Scripts\python.exe -m pip install -r desktop/requirements.txt
+.venv\Scripts\python.exe desktop/enigma_gui.py
+```
+
+For later launches, run only the last command.
+
+</details>
+
+## Need help?
+
+| Problem or question | Where to go |
+| --- | --- |
+| Arduino tools, board core or library missing | [Install firmware tools](docs/BUILD_AND_USE.md#firmware-build-and-flashing): Arduino CLI, ESP32 core **3.3.12**, ArduinoJson **6.21.5** |
+| Python or GUI dependency error | [Desktop setup](docs/BUILD_AND_USE.md#desktop-setup). Use Python **3.9–3.13**; if your default is newer, create the environment with `python3.13 -m venv .venv`. |
+| No port, busy port, or board not ready | [Troubleshooting](docs/BUILD_AND_USE.md#troubleshooting). Close other serial programs and use a USB data cable. |
+| How do the rotors, rings and plugboard work? | [User guide and cipher experiments](docs/USER_GUIDE.md), also inside the GUI under **How to use Enigma** |
+| Want Arduino IDE, another editor, or a new FPGA build? | [Build guide](docs/BUILD_AND_USE.md) |
+| Want to check your board or review test evidence? | [Verification](docs/BUILD_AND_USE.md#repeatable-verification) and [validated results](docs/BUILD_AND_USE.md#validation-and-limitations) |
+
+## About the project
+
+The laptop GUI controls an Enigma simulator on the Shrike Fi. The ESP32-S3 handles USB and the plugboard; the SLG47910V FPGA performs rotor stepping, wiring and reflection. There is no software cipher fallback. The board's built-in LEDs are used; no external wiring is needed.
+
+The included image has passed all 60 rotor orders, encryption/decryption round trips, maximum-length messages, GUI operation and extended stress tests on a physical board. The complete setup was verified on macOS; Linux and Windows instructions are provided but have not undergone the recorded hardware acceptance run.
+
+This implements Enigma encryption/decryption. Automatic Bombe-style key cracking is not included.
+
+<details>
+<summary>Source map for developers</summary>
 
 | Location | Purpose |
 | --- | --- |
-| `fpga/rtl/` | Authoritative Verilog core, UART, protocol and LED logic |
-| `fpga/sim/` | Core, packet and full top-level testbenches |
-| `fpga/project/enigma/` | Renesas project, physical mapping and clock constraints |
-| `firmware/enigma_shrike/` | Arduino sketch, FPGA loader, USB/UART protocol and plugboard |
-| `desktop/` | PySide6 interface and serial client |
-| `reference/` | Independent Python oracle used only by tests |
-| `tests/` | Desktop/native tests, vector generation and physical-board acceptance |
-| `tools/` | Repeatable generation, build and test entry points |
-| `reports/` | Build manifest, timing, mapping, flash and test evidence |
+| `desktop/` | Python GUI and serial client |
+| `firmware/enigma_shrike/` | MCU firmware and included FPGA image |
+| `fpga/rtl/` | Authoritative FPGA source |
+| `fpga/project/enigma/` | Go Configure project and constraints |
+| `fpga/sim/` | RTL testbenches |
+| `reference/` | Python test oracle |
+| `tests/` | Host and physical-board tests |
+| `tools/` | Build, generation and test scripts |
+| `reports/` | Binary hashes and verification evidence |
 
-The FPGA activity LED and MCU status LED are built into the board. This project implements Enigma encryption/decryption; a Bombe-style key-search/cracking engine is not implemented. Current setup instructions are in the build guide; verified results are in its validation section.
+</details>
