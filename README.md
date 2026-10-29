@@ -13,6 +13,14 @@ cd shrikengima
 
 ### 2. Flash the board
 
+**If Arduino CLI is not installed:** on macOS/Linux with Homebrew, run:
+
+```sh
+brew install arduino-cli
+```
+
+Without Homebrew, use the [official Arduino CLI installer/downloads](https://docs.arduino.cc/arduino-cli/installation) (including Windows). If the ESP32 core or ArduinoJson library is also missing, follow the [one-time dependency setup](docs/BUILD_AND_USE.md#firmware-build-and-flashing).
+
 Find your port:
 
 ```sh
