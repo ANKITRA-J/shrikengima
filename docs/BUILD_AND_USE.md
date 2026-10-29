@@ -1,6 +1,6 @@
 # Build, test and use Shrike Fi Enigma
 
-Open the repository root in any IDE. Source files are ordinary Python, Arduino C++ and Verilog; no Codex or Kiro service is required. The recorded board acceptance run used macOS; Linux and Windows setup paths are provided but have not been hardware-validated here. Read [the current status](../STATUS.md) for the exact tested image and limitations.
+Open the repository root in any IDE. Source files are ordinary Python, Arduino C++ and Verilog. The recorded board acceptance run used macOS; Linux and Windows setup paths are provided but have not been hardware-validated here. See the validation section below for the tested image and limitations.
 
 For a new board, install the firmware tools and flash the included image, install the desktop dependencies, then run the board tests. Rebuilding the FPGA is optional unless you change the RTL. All commands below run from the repository root. On Windows use `python` where an example uses `python3`.
 
@@ -112,7 +112,7 @@ Open `fpga/project/enigma/enigma.ffpga` in Go Configure. Select FPGA Editor, Syn
 
 The 50 MHz oscillator feeds a registered divide-by-sixteen clock (3.125 MHz) for the protocol and cipher. The divider output `core_clk_out` maps to `REF_LOGIC_AS_CLK1`, `core_clk_en` drives `LOGIC_AS_CLK1_EN` high, and `core_clk` maps to the dedicated `LOGIC_AS_CLK1` clock input. This is an internal chip connection, requiring no external jumper. Do not use an unmapped logic-derived clock: simulation can pass while hardware remains stopped. See section 6.4 of the [SLG47910 datasheet](https://www.renesas.com/en/document/dst/slg47910-datasheet). UART uses 27 core clocks per bit (about 115741 baud, within 0.5% of 115200). LED pulse and protocol timeout counters are scaled to this clock. Timing constraints are in `ffpga/timing-constraints/clocks.sdc`; verify that they are included in the project and that routing/timing passes before using an image.
 
-Use `ffpga/build/bitstream/FPGA_bitstream_MCU.bin`, the vendor MCU SPI image. Do not use the raw core, FLASH_MEM, or OTP image with this loader. A successful synthesis alone does not mean a valid image exists. The tracked `firmware/enigma_shrike/data/fpga_bitstream.bin` contains the tested image; its SHA-256 and validation status are in `reports/2026-10-29/build-manifest.json`. The recorded board acceptance and stress tests pass; see STATUS.md.
+Use `ffpga/build/bitstream/FPGA_bitstream_MCU.bin`, the vendor MCU SPI image. Do not use the raw core, FLASH_MEM, or OTP image with this loader. A successful synthesis alone does not mean a valid image exists. The tracked `firmware/enigma_shrike/data/fpga_bitstream.bin` contains the tested image; its SHA-256 and validation status are in the [build manifest](../reports/2026-10-29/build-manifest.json). The recorded board acceptance and stress tests pass; see the validation section below.
 
 After a new successful FPGA build, pass its image directly to the firmware helper:
 
@@ -148,4 +148,20 @@ For vendor Verilator installations lacking runtime headers/make support, `run_ch
 - UART error or uncertain rotor state: reconnect/reapply settings before another operation. A failed letter is never automatically retried, since the physical rotor state may already have advanced.
 - Resource or timing failure: regenerate source, check target device and project synthesis settings, and read vendor reports. Do not use reports from an earlier RTL revision.
 
-The exact USB and FPGA packet contracts are in `docs/SPEC.md`. `STATUS.md` records current evidence and limitations. Git history, source changes and tests remain available independently of the IDE used.
+For custom clients, consult `desktop/serial_manager.py` and `firmware/enigma_shrike/usb_protocol.cpp` for the USB messages, and `firmware/enigma_shrike/uart_protocol.cpp` and `fpga/rtl/packet_wrapper.v` for the board protocol. These describe the implemented interfaces.
+
+
+## Validation and limitations
+
+The included image passed all 60 rotor orders, randomized rings/windows and plugboard checks, encryption/decryption round trips, the 512-byte boundary, and GUI Connect/Encrypt/Decrypt/Reset against a physical Shrike Fi. Extended testing completed 30,720 additional letter transformations; the final firmware acceptance run added another 5,120. Host checks cover the reference, desktop transport, native firmware transport and RTL simulations.
+
+The build uses **136/140 CLBs, 799/1120 LUT5s and 361 flip-flops**. Post-route internal clock timing has **+15.059 ns** worst setup slack and zero total negative slack. This does not claim synchronous timing signoff for asynchronous UART inputs.
+
+Retain the tested **3.125 MHz** core clock. An earlier 6.25 MHz image produced occasional wrong letters on hardware; changing the clock also changed placement, so the precise cause was not isolated. Regenerate and retest after RTL changes. Linux and Windows instructions are provided, but the recorded physical acceptance used macOS.
+
+Build records retain their original timestamps for traceability:
+
+- [Manifest and binary hashes](../reports/2026-10-29/build-manifest.json)
+- [Hardware acceptance](../reports/2026-10-29/hardware-test.log), [stress test](../reports/2026-10-29/hardware-stress.log), and [GUI acceptance](../reports/2026-10-29/gui-hardware-test.log)
+- [Flash verification](../reports/2026-10-29/flash.log), [host checks](../reports/2026-10-29/host-checks.log), and [native transport checks](../reports/2026-10-29/native-checks.log)
+- [Timing](../reports/2026-10-29/PNR_TIMING.log), [I/O mapping](../reports/2026-10-29/PNR_IO.log), and [resource use](../reports/2026-10-29/resource-utilization-report.log)

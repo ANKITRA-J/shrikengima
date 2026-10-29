@@ -2,7 +2,7 @@
 
 A laptop-controlled Enigma simulator for the Vicharak Shrike Fi. The ESP32-S3 handles USB and the plugboard; the SLG47910V FPGA performs rotor stepping, wiring and reflection. Encryption and decryption use identical settings and the same FPGA operation. The production app has no software cipher fallback.
 
-**Hardware verified:** the included FPGA image has passed all 60 rotor orders, encryption/decryption, the 512-byte message boundary, GUI operation, and 30,720 additional stress-test letters on a physical Shrike Fi. See [STATUS.md](STATUS.md) and the [build manifest](reports/2026-10-29/build-manifest.json) for the tested configuration and evidence.
+**Hardware verified:** the included FPGA image has passed all 60 rotor orders, encryption/decryption, the 512-byte message boundary, GUI operation, and 30,720 additional stress-test letters on a physical Shrike Fi. See [validation details](docs/BUILD_AND_USE.md#validation-and-limitations) and the [build manifest](reports/2026-10-29/build-manifest.json) for the tested configuration and evidence.
 
 ## What you need
 
@@ -48,7 +48,7 @@ Choose three distinct rotors I–V, rings and initial windows, and optional disj
 
 ## Build, test and modify
 
-The [build and use guide](docs/BUILD_AND_USE.md) contains exact installation commands, Arduino IDE settings, the Go Configure workflow, pin mapping, other-IDE instructions and troubleshooting. Source files are ordinary Python, Arduino C++ and Verilog; Codex and Kiro are not runtime dependencies.
+The [build and use guide](docs/BUILD_AND_USE.md) contains exact installation commands, Arduino IDE settings, the Go Configure workflow, pin mapping, other-IDE instructions and troubleshooting. Source files are ordinary Python, Arduino C++ and Verilog.
 
 After flashing, verify your own board:
 
@@ -59,7 +59,7 @@ After flashing, verify your own board:
 
 Close the regular GUI before running these tests. Add `--stress-rounds 30` to the hardware test for the extended randomized checks. Developers with Verilator and a C++ compiler can run host tests with `.venv/bin/python tools/run_checks.py`.
 
-To change the FPGA, edit `fpga/rtl/`, run `python3 tools/gen_fpga_files.py` and `python3 tools/prepare_fpga.py`, then open `fpga/project/enigma/enigma.ffpga` in Go Configure. Follow the build guide to generate the correct **MCU SPI image**, rebuild LittleFS, flash and retest. Build products are ignored under `build/`; recorded release evidence is under `reports/2026-10-29/`.
+To change the FPGA, edit `fpga/rtl/`, run `python3 tools/gen_fpga_files.py` and `python3 tools/prepare_fpga.py`, then open `fpga/project/enigma/enigma.ffpga` in Go Configure. Follow the build guide to generate the correct **MCU SPI image**, rebuild LittleFS, flash and retest. Build products are ignored under `build/`; recorded build evidence is under `reports/`.
 
 ## Source map
 
@@ -73,8 +73,6 @@ To change the FPGA, edit `fpga/rtl/`, run `python3 tools/gen_fpga_files.py` and 
 | `reference/` | Independent Python oracle used only by tests |
 | `tests/` | Desktop/native tests, vector generation and physical-board acceptance |
 | `tools/` | Repeatable generation, build and test entry points |
-| `reports/2026-10-29/` | Build manifest, timing, mapping, flash and test evidence |
-| [docs/SPEC.md](docs/SPEC.md) | USB JSON and MCU–FPGA UART contracts |
-| [STATUS.md](STATUS.md) | Verified results, limitations and hardware corrections |
+| `reports/` | Build manifest, timing, mapping, flash and test evidence |
 
-The FPGA activity LED and MCU status LED are built into the board. This project implements Enigma encryption/decryption; a Bombe-style key-search/cracking engine is not implemented. Current setup instructions are in the build guide; verified results are in STATUS.md.
+The FPGA activity LED and MCU status LED are built into the board. This project implements Enigma encryption/decryption; a Bombe-style key-search/cracking engine is not implemented. Current setup instructions are in the build guide; verified results are in its validation section.
