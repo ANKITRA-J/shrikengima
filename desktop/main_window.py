@@ -5,10 +5,12 @@ Main GUI window for Shrike Fi Enigma
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
     QLabel, QComboBox, QPushButton, QTextEdit, QPlainTextEdit,
-    QGroupBox, QListWidget, QInputDialog, QMessageBox, QStatusBar
+    QGroupBox, QListWidget, QInputDialog, QMessageBox, QStatusBar, QDialog, QTextBrowser
 )
 from PySide6.QtCore import Qt, QTimer, QThread, Signal
 from PySide6.QtGui import QFont
+
+from pathlib import Path
 
 from enigma_model import EnigmaModel
 from serial_manager import SerialManager
@@ -63,6 +65,15 @@ class MainWindow(QMainWindow):
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
 
+        help_row = QHBoxLayout()
+        hint = QLabel("Start here: Connect → keep the default settings → enter a message → Encrypt")
+        hint.setWordWrap(True)
+        help_row.addWidget(hint, 1)
+        self.guide_btn = QPushButton("How to use Enigma")
+        self.guide_btn.clicked.connect(self.show_user_guide)
+        help_row.addWidget(self.guide_btn)
+        main_layout.addLayout(help_row)
+
         # Connection section
         conn_group = self.create_connection_section()
         main_layout.addWidget(conn_group)
@@ -77,6 +88,22 @@ class MainWindow(QMainWindow):
         
         # Keep port-discovery messages from the existing status bar.
     
+    def show_user_guide(self):
+        """Show the same beginner guide shipped with the project, offline."""
+        dialog = QDialog(self)
+        dialog.setWindowTitle("How to use Enigma — beginner guide")
+        dialog.resize(680, 650)
+        layout = QVBoxLayout(dialog)
+        browser = QTextBrowser()
+        browser.setOpenLinks(False)
+        guide = Path(__file__).resolve().parents[1] / "docs/USER_GUIDE.md"
+        browser.setMarkdown(guide.read_text(encoding="utf-8"))
+        layout.addWidget(browser)
+        close = QPushButton("Close guide")
+        close.clicked.connect(dialog.accept)
+        layout.addWidget(close)
+        dialog.exec()
+
     def create_connection_section(self) -> QGroupBox:
         """Create connection controls"""
         group = QGroupBox("Connection")

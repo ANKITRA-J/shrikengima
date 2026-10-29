@@ -13,6 +13,8 @@ A laptop-controlled Enigma simulator for the Vicharak Shrike Fi. The ESP32-S3 ha
 
 The complete setup was verified on macOS. The Python GUI and build helper include Linux/Windows support, but those hosts have not undergone the recorded physical acceptance run. No external LED wiring or FPGA programmer is needed for normal use: the MCU loads the FPGA at startup.
 
+New to Enigma? Read the [beginner walkthrough](docs/USER_GUIDE.md), also available through **How to use Enigma** inside the app.
+
 ## First run
 
 1. Get the project and open its root folder in your editor:
