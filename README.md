@@ -7,8 +7,8 @@ Already have the Arduino tools installed? Connect your **8 MB Shrike Fi**, close
 ### 1. Clone
 
 ```sh
-git clone https://github.com/ANKITRA-J/shrikengima.git
-cd shrikengima
+git clone https://github.com/ANKITRA-J/shrikenigma.git
+cd shrikenigma
 ```
 
 ### 2. Flash the board
