@@ -1,3 +1,5 @@
+> **Historical document, superseded:** use [STATUS.md](STATUS.md) for verified results and [docs/BUILD_AND_USE.md](docs/BUILD_AND_USE.md) for current setup. Completion claims below predate physical hardware acceptance.
+
 # Quick Start Guide - Shrike Fi Enigma
 
 ## ✅ What's Already Done

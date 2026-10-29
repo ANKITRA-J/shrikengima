@@ -1,24 +1,34 @@
 // Top-level module for Shrike Fi board integration
 // Connects UART, packet protocol, enigma core, and LED controller
 
-(* top_module *)
+(* top *)
 module enigma_top (
-  (* clock_pin = "OSC_CLK" *) input OSC_CLK,
-  (* clock_enable_pin = "OSC_EN" *) input OSC_EN,
-  (* io_pin = "5" *) input uart_rx_pin,
-  (* io_pin = "6", io_dir = "output" *) output uart_tx_pin,
-  (* io_pin = "GPIO16", io_dir = "output" *) output led_out,
-  (* io_pin = "GPIO16_OE", io_dir = "output" *) output led_oe
+  (* iopad_external_pin, clkbuf_inhibit *) input OSC_CLK,
+  (* iopad_external_pin, clkbuf_inhibit *) input core_clk,
+  (* iopad_external_pin *) output core_clk_out,
+  (* iopad_external_pin *) output core_clk_en,
+  (* iopad_external_pin *) output OSC_EN,
+  (* iopad_external_pin *) input uart_rx_pin,
+  (* iopad_external_pin *) output uart_tx_pin,
+  (* iopad_external_pin *) output uart_tx_oe,
+  (* iopad_external_pin *) output led_out,
+  (* iopad_external_pin *) output led_oe
 );
+  reg [3:0] clock_div = 0;
+  always @(posedge OSC_CLK) clock_div <= clock_div + 4'd1;
+  // Dedicated LaC1 loopback is mapped in pins.csv; no external jumper.
+  assign core_clk_out = clock_div[3]; // 50 MHz / 16 = 3.125 MHz
+  assign core_clk_en = 1'b1;
+  wire clk = core_clk;
+  assign OSC_EN = 1'b1;
+  assign led_oe = 1'b1;
+  assign uart_tx_oe = 1'b1;
+  // Forge registers power up at their synthesized initial values.
+  // Hold the entire design reset for 255 core-clock edges after configuration.
+  reg [7:0] startup = 0;
+  always @(posedge clk) if (!(&startup)) startup <= startup + 1'b1;
+  wire rst = !(&startup);
 
-  // System signals
-  wire clk = OSC_CLK;
-  wire rst;
-  
-  // Generate reset from inverted clock enable (active-high reset)
-  assign rst = !OSC_EN;
-  assign led_oe = 1'b1;  // Always enable LED output
-  
   // UART RX signals
   wire [7:0] uart_rx_data;
   wire uart_rx_valid;
@@ -46,7 +56,7 @@ module enigma_top (
   
   // UART RX instantiation
   uart_rx #(
-    .CLKS_PER_BIT(434)
+    .CLKS_PER_BIT(27)
   ) uart_rx_inst (
     .clk(clk),
     .rst(rst),
@@ -59,7 +69,7 @@ module enigma_top (
   
   // UART TX instantiation
   uart_tx #(
-    .CLKS_PER_BIT(434)
+    .CLKS_PER_BIT(27)
   ) uart_tx_inst (
     .clk(clk),
     .rst(rst),
@@ -70,7 +80,7 @@ module enigma_top (
   );
   
   // Packet wrapper instantiation
-  packet_wrapper packet_wrapper_inst (
+  packet_wrapper #(.TIMEOUT_CLOCKS(31250)) packet_wrapper_inst (
     .clk(clk),
     .rst(rst),
     .uart_rx_data(uart_rx_data),
@@ -110,7 +120,7 @@ module enigma_top (
   );
   
   // LED controller instantiation
-  led_controller led_controller_inst (
+  led_controller #(.PULSE_CLOCKS(250000)) led_controller_inst (
     .clk(clk),
     .rst(rst),
     .trigger(core_done),

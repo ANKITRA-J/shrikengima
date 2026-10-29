@@ -1,8 +1,6 @@
 // Enigma cipher core module
 // Implements three-rotor Enigma with reflector, configurable settings, and sequential datapath
 
-`include "helpers.v"
-
 module enigma_core (
   input clk,
   input rst,
@@ -18,6 +16,8 @@ module enigma_core (
   output reg [4:0] window_middle,
   output reg [4:0] window_right
 );
+
+  `include "helpers.v"
 
   // Configuration registers
   reg [2:0] rotor_left, rotor_middle, rotor_right;
@@ -61,6 +61,15 @@ module enigma_core (
   reg [4:0] current_val;
   reg [4:0] shift_val; // Temporary for ring offset calculations
   
+  // Select operands before arithmetic so the six rotor traversals share
+  // one ring-offset and input-translation datapath.
+  wire right_stage = state == RIGHT_FWD_SETUP || state == RIGHT_INV_SETUP;
+  wire middle_stage = state == MIDDLE_FWD_SETUP || state == MIDDLE_INV_SETUP;
+  wire [4:0] selected_window = right_stage ? window_right : middle_stage ? window_middle : window_left;
+  wire [4:0] selected_ring = right_stage ? ring_right : middle_stage ? ring_middle : ring_left;
+  wire [4:0] selected_shift = sub26(selected_window, selected_ring);
+  wire [4:0] translated_input = add26(current_val, selected_shift);
+
   // ROM interface
   reg [2:0] rom_rotor;
   reg rom_inv;
@@ -145,10 +154,10 @@ module enigma_core (
         end
         
         RIGHT_FWD_SETUP: begin
-          shift_val <= sub26(window_right, ring_right);
+          shift_val <= selected_shift;
           rom_rotor <= rotor_right;
           rom_inv <= 1'b0;
-          rom_x <= add26(current_val, sub26(window_right, ring_right));
+          rom_x <= translated_input;
           state <= RIGHT_FWD_WAIT;
         end
         
@@ -158,10 +167,10 @@ module enigma_core (
         end
         
         MIDDLE_FWD_SETUP: begin
-          shift_val <= sub26(window_middle, ring_middle);
+          shift_val <= selected_shift;
           rom_rotor <= rotor_middle;
           rom_inv <= 1'b0;
-          rom_x <= add26(current_val, sub26(window_middle, ring_middle));
+          rom_x <= translated_input;
           state <= MIDDLE_FWD_WAIT;
         end
         
@@ -171,10 +180,10 @@ module enigma_core (
         end
         
         LEFT_FWD_SETUP: begin
-          shift_val <= sub26(window_left, ring_left);
+          shift_val <= selected_shift;
           rom_rotor <= rotor_left;
           rom_inv <= 1'b0;
-          rom_x <= add26(current_val, sub26(window_left, ring_left));
+          rom_x <= translated_input;
           state <= LEFT_FWD_WAIT;
         end
         
@@ -197,10 +206,10 @@ module enigma_core (
         end
         
         LEFT_INV_SETUP: begin
-          shift_val <= sub26(window_left, ring_left);
+          shift_val <= selected_shift;
           rom_rotor <= rotor_left;
           rom_inv <= 1'b1;
-          rom_x <= add26(current_val, sub26(window_left, ring_left));
+          rom_x <= translated_input;
           state <= LEFT_INV_WAIT;
         end
         
@@ -210,10 +219,10 @@ module enigma_core (
         end
         
         MIDDLE_INV_SETUP: begin
-          shift_val <= sub26(window_middle, ring_middle);
+          shift_val <= selected_shift;
           rom_rotor <= rotor_middle;
           rom_inv <= 1'b1;
-          rom_x <= add26(current_val, sub26(window_middle, ring_middle));
+          rom_x <= translated_input;
           state <= MIDDLE_INV_WAIT;
         end
         
@@ -223,10 +232,10 @@ module enigma_core (
         end
         
         RIGHT_INV_SETUP: begin
-          shift_val <= sub26(window_right, ring_right);
+          shift_val <= selected_shift;
           rom_rotor <= rotor_right;
           rom_inv <= 1'b1;
-          rom_x <= add26(current_val, sub26(window_right, ring_right));
+          rom_x <= translated_input;
           state <= RIGHT_INV_WAIT;
         end
         

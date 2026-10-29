@@ -38,7 +38,7 @@ bool UARTProtocol::ping(uint8_t* version) {
     return false;
   }
   
-  if (status != STATUS_OK || data_len < 4) {
+  if (status != STATUS_OK || data_len != 4) {
     return false;
   }
   
@@ -73,11 +73,15 @@ bool UARTProtocol::config(uint8_t rotors[3], uint8_t windows[3], uint8_t rings[3
     return false;
   }
   
-  if (status != STATUS_OK || resp_len < 3) {
+  if (status != STATUS_OK || resp_len != 3 || resp_data[0] > 25 || resp_data[1] > 25 || resp_data[2] > 25) {
     markStateUncertain();
     return false;
   }
   
+  if (memcmp(windows, resp_data, 3) != 0) {
+    markStateUncertain();
+    return false;
+  }
   // Response contains current windows
   windows[0] = resp_data[0];
   windows[1] = resp_data[1];
@@ -90,6 +94,7 @@ bool UARTProtocol::config(uint8_t rotors[3], uint8_t windows[3], uint8_t rings[3
 }
 
 bool UARTProtocol::transform(uint8_t contact, uint8_t* result, uint8_t windows[3]) {
+  if (!state_certain_ || contact > 25) return false;
   uint8_t payload[1] = {contact};
   uint8_t status;
   uint8_t resp_data[9];
@@ -109,7 +114,7 @@ bool UARTProtocol::transform(uint8_t contact, uint8_t* result, uint8_t windows[3
     return false;
   }
   
-  if (status != STATUS_OK || resp_len < 4) {
+  if (status != STATUS_OK || resp_len != 4 || resp_data[0] > 25 || resp_data[1] > 25 || resp_data[2] > 25 || resp_data[3] > 25) {
     markStateUncertain();
     return false;
   }
@@ -137,7 +142,8 @@ bool UARTProtocol::readState(uint8_t windows[3]) {
     return false;
   }
   
-  if (status != STATUS_OK || resp_len < 3) {
+  if (status != STATUS_OK || resp_len != 3 || resp_data[0] > 25 || resp_data[1] > 25 || resp_data[2] > 25) {
+    markStateUncertain();
     return false;
   }
   
@@ -162,12 +168,13 @@ bool UARTProtocol::reset() {
     return false;
   }
   
-  if (status == STATUS_OK) {
-    state_certain_ = true;
-    return true;
+  if (status != STATUS_OK || resp_len != 3 || resp_data[0] != 0 || resp_data[1] != 0 || resp_data[2] != 0) {
+    markStateUncertain();
+    return false;
   }
-  
-  return false;
+
+  state_certain_ = true;
+  return true;
 }
 
 bool UARTProtocol::isStateCertain() {
@@ -219,6 +226,10 @@ bool UARTProtocol::receiveResponse(uint8_t expected_opcode, uint8_t* status,
   uint8_t byte;
   unsigned long start_time = millis();
   
+  auto readByte = [&](uint8_t* out) {
+    unsigned long elapsed = millis() - start_time;
+    return elapsed < PACKET_TIMEOUT_MS && waitForByte(out, PACKET_TIMEOUT_MS - elapsed);
+  };
   // Wait for marker
   if (!waitForByte(&byte, PACKET_TIMEOUT_MS)) {
     DEBUG_PRINTLN("UARTProtocol: RX timeout waiting for marker");
@@ -234,10 +245,10 @@ bool UARTProtocol::receiveResponse(uint8_t expected_opcode, uint8_t* status,
   // Read header
   uint8_t version, seq, opcode, length;
   
-  if (!waitForByte(&version, PACKET_TIMEOUT_MS - (millis() - start_time))) return false;
-  if (!waitForByte(&seq, PACKET_TIMEOUT_MS - (millis() - start_time))) return false;
-  if (!waitForByte(&opcode, PACKET_TIMEOUT_MS - (millis() - start_time))) return false;
-  if (!waitForByte(&length, PACKET_TIMEOUT_MS - (millis() - start_time))) return false;
+  if (!readByte(&version)) return false;
+  if (!readByte(&seq)) return false;
+  if (!readByte(&opcode)) return false;
+  if (!readByte(&length)) return false;
   
   // Validate header
   if (version != PKT_VERSION) {
@@ -246,19 +257,19 @@ bool UARTProtocol::receiveResponse(uint8_t expected_opcode, uint8_t* status,
     return false;
   }
   
-  if (seq != (sequence_ - 1)) {  // We already incremented in sendRequest
+  if (seq != static_cast<uint8_t>(sequence_ - 1)) {  // We already incremented in sendRequest
     DEBUG_PRINTF("UARTProtocol: Sequence mismatch: got %d expected %d\n", seq, sequence_ - 1);
     clearRxBuffer();
     return false;
   }
   
-  if ((opcode & 0x7F) != expected_opcode) {
+  if (opcode != (expected_opcode | 0x80)) {
     DEBUG_PRINTF("UARTProtocol: Opcode mismatch: got %02X expected %02X\n", opcode, expected_opcode);
     clearRxBuffer();
     return false;
   }
   
-  if (length > 10) {  // Status + up to 9 data bytes
+  if (length < 1 || length > 10) {  // Status + up to 9 data bytes
     DEBUG_PRINTF("UARTProtocol: Invalid length: %d\n", length);
     clearRxBuffer();
     return false;
@@ -267,7 +278,7 @@ bool UARTProtocol::receiveResponse(uint8_t expected_opcode, uint8_t* status,
   // Read payload
   uint8_t payload[10];
   for (uint8_t i = 0; i < length; i++) {
-    if (!waitForByte(&payload[i], PACKET_TIMEOUT_MS - (millis() - start_time))) {
+    if (!readByte(&payload[i])) {
       DEBUG_PRINTLN("UARTProtocol: Timeout reading payload");
       return false;
     }
@@ -275,7 +286,7 @@ bool UARTProtocol::receiveResponse(uint8_t expected_opcode, uint8_t* status,
   
   // Read CRC
   uint8_t rx_crc;
-  if (!waitForByte(&rx_crc, PACKET_TIMEOUT_MS - (millis() - start_time))) {
+  if (!readByte(&rx_crc)) {
     DEBUG_PRINTLN("UARTProtocol: Timeout reading CRC");
     return false;
   }

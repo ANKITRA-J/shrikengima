@@ -1,106 +1,58 @@
-// FPGA bitstream loader implementation
-
+// ESP32-S3 sequence follows Vicharak Shrike 1.1.0, src/Shrike.cpp.
+// Own the SPI instance so it can be ended before GPIO11/13 become UART pins.
 #include "fpga_loader.h"
-#include <SPIFFS.h>
-
-// Static member initialization
+#include <LittleFS.h>
+#include <SPI.h>
+namespace { SPIClass config_spi(HSPI); }
 bool FPGALoader::configured_ = false;
 uint32_t FPGALoader::bitstream_size_ = 0;
 char FPGALoader::status_message_[128] = "Not initialized";
-
 bool FPGALoader::init() {
-  DEBUG_PRINTLN("FPGALoader: Initializing...");
-  
-  // Initialize filesystem
-  if (!SPIFFS.begin(true)) {
-    snprintf(status_message_, sizeof(status_message_), "Filesystem init failed");
-    DEBUG_PRINTLN(status_message_);
+  configured_ = false;
+  // Never format automatically: a mount failure must not erase the FPGA image.
+  if (!LittleFS.begin(false)) {
+    snprintf(status_message_,sizeof(status_message_),"LittleFS mount failed; upload filesystem image");
     return false;
   }
-  
-  DEBUG_PRINTLN("FPGALoader: Filesystem mounted");
-  
-  // TODO: Initialize Arduino FPGA library
-  // This requires verifying ESP32-S3 support in the library source
-  // The official library README shows RP2040 defaults
-  // Must check actual source for ESP32-S3 compatibility
-  
-  snprintf(status_message_, sizeof(status_message_), "Initialized, not configured");
   return true;
 }
-
 bool FPGALoader::loadBitstream(const char* path) {
-  DEBUG_PRINTF("FPGALoader: Loading bitstream from %s\n", path);
-  
-  // Check if file exists
-  if (!SPIFFS.exists(path)) {
-    snprintf(status_message_, sizeof(status_message_), "Bitstream file not found: %s", path);
-    DEBUG_PRINTLN(status_message_);
-    return false;
+  configured_ = false;
+  File file=LittleFS.open(path,"r");
+  if (!file) { snprintf(status_message_,sizeof(status_message_),"Missing FPGA image"); return false; }
+  bitstream_size_=file.size();
+  // The tracked placeholder must never be sent to the board.
+  if (bitstream_size_<1024) {
+    file.close(); snprintf(status_message_,sizeof(status_message_),"FPGA image is empty or a placeholder"); return false;
   }
-  
-  // Open bitstream file
-  File file = SPIFFS.open(path, "r");
-  if (!file) {
-    snprintf(status_message_, sizeof(status_message_), "Failed to open bitstream file");
-    DEBUG_PRINTLN(status_message_);
-    return false;
+  pinMode(9,OUTPUT); pinMode(8,OUTPUT); pinMode(10,OUTPUT);
+  digitalWrite(10,LOW); digitalWrite(9,LOW); digitalWrite(8,LOW);
+  delay(100); digitalWrite(9,HIGH); digitalWrite(8,HIGH); delay(100);
+  config_spi.begin(12,13,11,10);
+  delay(500); digitalWrite(10,HIGH); delayMicroseconds(2000); digitalWrite(10,LOW);
+  config_spi.beginTransaction(SPISettings(1600000,MSBFIRST,SPI_MODE0));
+  uint8_t buffer[512]; size_t sent=0;
+  unsigned long started=millis();
+  while (sent<bitstream_size_ && millis()-started<FPGA_LOAD_TIMEOUT_MS) {
+    size_t n=file.read(buffer,sizeof(buffer));
+    if (!n) break;
+    config_spi.transfer(buffer,n); sent+=n;
   }
-  
-  bitstream_size_ = file.size();
-  DEBUG_PRINTF("FPGALoader: Bitstream size: %u bytes\n", bitstream_size_);
-  
-  if (bitstream_size_ == 0) {
-    snprintf(status_message_, sizeof(status_message_), "Bitstream file is empty");
-    file.close();
-    DEBUG_PRINTLN(status_message_);
-    return false;
-  }
-  
-  // TODO: Load bitstream using Arduino FPGA library
-  // Placeholder implementation - actual loading depends on library API
-  // Example (pseudocode):
-  //   uint8_t* buffer = (uint8_t*)malloc(bitstream_size_);
-  //   file.read(buffer, bitstream_size_);
-  //   bool success = FPGA.begin();
-  //   if (success) success = FPGA.load(buffer, bitstream_size_);
-  //   free(buffer);
-  //   file.close();
-  //   configured_ = success;
-  
-  file.close();
-  
-  // PLACEHOLDER: Mark as configured for compilation
-  // In real implementation, this depends on library success
-  configured_ = false;  // Set to false until real loader implemented
-  
-  snprintf(status_message_, sizeof(status_message_), 
-           "Bitstream loading not implemented (library pending)");
-  DEBUG_PRINTLN(status_message_);
-  
-  return false;  // Return false until real implementation
-}
-
-bool FPGALoader::isConfigured() {
+  config_spi.endTransaction(); digitalWrite(10,HIGH); file.close(); delay(100);
+  releaseConfigPins();
+  configured_=sent==bitstream_size_;
+  snprintf(status_message_,sizeof(status_message_),configured_ ? "Image transferred; UART verification required" : "Incomplete image transfer");
   return configured_;
 }
-
 void FPGALoader::releaseConfigPins() {
-  // TODO: Release configuration pins using Arduino FPGA library
-  // This allows the FPGA to operate in runtime mode
-  DEBUG_PRINTLN("FPGALoader: Releasing configuration pins");
+  config_spi.end();
+  pinMode(11,INPUT); pinMode(13,INPUT); pinMode(12,INPUT);
+  // Keep power/enable asserted and configuration select high.
 }
-
-const char* FPGALoader::getStatus() {
-  return status_message_;
-}
-
-uint32_t FPGALoader::getBitstreamSize() {
-  return bitstream_size_;
-}
-
-bool FPGALoader::verifyBitstream(const uint8_t* data, size_t length) {
-  // TODO: Implement bitstream metadata verification
-  // Check magic numbers, version, checksums, etc.
-  return length > 0;
+bool FPGALoader::isConfigured() { return configured_; }
+const char* FPGALoader::getStatus() { return status_message_; }
+uint32_t FPGALoader::getBitstreamSize() { return bitstream_size_; }
+bool FPGALoader::verifyBitstream(const uint8_t* data,size_t length) {
+  // Format/integrity validation needs vendor image metadata; size alone is not authenticity.
+  return data && length>=1024;
 }

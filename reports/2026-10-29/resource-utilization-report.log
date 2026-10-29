@@ -1,0 +1,43 @@
+####   Resource Utilization Report   ####
+    Top level module name: enigma_top
+
+    Resource usage:
+
+        CLB LUT5s:    799/1120 (71.34%)
+            Lut5:                          799 (71.34%)
+            Lut5 for Shift-register:       0 (0.00%)
+            Lut5 for Distributed memory:   0 (0.00%)
+
+        FFs:    361
+        CLB FFs: 357/1120 (31.88%)
+        IOB FFs: 4/736 (0.54%)
+
+        CLBs:      136/140 (97.14%)
+        Tiles:     1/1 (100.00%)
+
+        RTL Input ports:     3 
+        RTL Output ports:    7 
+        GPIOs:               3/19 (15.79%)
+
+        PLLs:        0/1 (0.00%)
+        OSCs:        1/1 (100.00%)
+        4k BRAMs:    0/8 (0.00%)
+
+        2 Clocks
+           Clock 0: net     2, OSC_CLK, Fanout: 2 CLBs
+           Clock 1: net     3, core_clk, Fanout: 126 CLBs
+           Total 2 unique clocks
+
+####   Resource Utilization Complete   ####
+TILE-REQ:		0		0		0		2
+### Total FPGA resources from current floorplan: ###
+                       184 IOBs
+                       140 Logic 6-LUT CLBs
+                              40 CLBs support RAM/SR
+Usage of Logic CLBs is 97.1%.
+    Logic-Memory CLB for RAM/Shift-Register is 0.0%.
+Usage of LUTs is 90.5%.
+    dual-LUTs is 28.2%.
+Usage of FF is 50.9%.
+    dual-FF is 12.9%.
+Usage of IO CLB is 3.3%.

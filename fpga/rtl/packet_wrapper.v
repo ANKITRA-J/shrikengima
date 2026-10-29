@@ -1,7 +1,7 @@
 // Packet wrapper module for internal board protocol
 // Handles UART communication, packet parsing, CRC validation, and enigma_core interface
 
-module packet_wrapper (
+module packet_wrapper #(parameter TIMEOUT_CLOCKS = 500000) (
   input clk,
   input rst,
   
@@ -68,17 +68,18 @@ module packet_wrapper (
   reg [4:0] state;
   
   // Packet fields
-  reg [7:0] version;
-  reg [7:0] sequence;
+  reg version_valid;
+  reg [7:0] request_sequence;
   reg [7:0] opcode;
   reg [7:0] length;
-  reg [7:0] payload [0:8];
-  reg [7:0] rx_crc;
+  reg [4:0] payload [0:8];
+  reg payload_invalid;
+  reg crc_valid;
   reg [3:0] payload_index;
   
   // Response fields
   reg [7:0] resp_status;
-  reg [7:0] resp_data [0:8];
+  reg [7:0] resp_data [0:3];
   reg [3:0] resp_length;
   reg [3:0] resp_index;
   reg [3:0] tx_index;
@@ -87,19 +88,19 @@ module packet_wrapper (
   reg [7:0] crc_byte_in;
   reg crc_update;
   wire [7:0] crc_out;
-  reg [7:0] expected_crc;
   
   crc8 crc_inst (
     .clk(clk),
-    .rst(rst || (state == IDLE)),
+    .rst(rst || (state == IDLE) || (state == BUILD_RESPONSE)),
     .byte_in(crc_byte_in),
     .update(crc_update),
     .crc_out(crc_out)
   );
   
   // Timeout counter (10ms = 500,000 clocks at 50MHz)
-  reg [18:0] timeout_counter;
-  wire timeout = (timeout_counter == 19'd499999);
+  localparam TIMEOUT_BITS = $clog2(TIMEOUT_CLOCKS);
+  reg [TIMEOUT_BITS-1:0] timeout_counter;
+  wire timeout = (timeout_counter == (TIMEOUT_CLOCKS-1));
   
   // Config write counter for CONFIG command
   reg [3:0] cfg_write_index;
@@ -111,8 +112,9 @@ module packet_wrapper (
       core_start <= 1'b0;
       core_cfg_we <= 1'b0;
       core_rst <= 1'b0;
-      timeout_counter <= 19'd0;
+      timeout_counter <= 0;
       crc_update <= 1'b0;
+      resp_length <= 0;
     end else begin
       // Default signal values
       uart_tx_start <= 1'b0;
@@ -123,9 +125,9 @@ module packet_wrapper (
       
       // Timeout counter
       if (state == IDLE) begin
-        timeout_counter <= 19'd0;
+        timeout_counter <= 0;
       end else if (uart_rx_valid) begin
-        timeout_counter <= 19'd0;
+        timeout_counter <= 0;
       end else if (!timeout) begin
         timeout_counter <= timeout_counter + 1;
       end
@@ -133,19 +135,20 @@ module packet_wrapper (
       // Handle timeout
       if (timeout && state != IDLE && state != TX_RESPONSE) begin
         state <= IDLE;
-      end
+      end else begin
       
       case (state)
         IDLE: begin
           if (uart_rx_valid && uart_rx_data == REQ_MARKER) begin
             state <= RX_VERSION;
             payload_index <= 4'd0;
+            payload_invalid <= 1'b0;
           end
         end
         
         RX_VERSION: begin
           if (uart_rx_valid) begin
-            version <= uart_rx_data;
+            version_valid <= uart_rx_data == VERSION;
             crc_byte_in <= uart_rx_data;
             crc_update <= 1'b1;
             state <= RX_SEQUENCE;
@@ -154,7 +157,7 @@ module packet_wrapper (
         
         RX_SEQUENCE: begin
           if (uart_rx_valid) begin
-            sequence <= uart_rx_data;
+            request_sequence <= uart_rx_data;
             crc_byte_in <= uart_rx_data;
             crc_update <= 1'b1;
             state <= RX_OPCODE;
@@ -190,11 +193,12 @@ module packet_wrapper (
         
         RX_PAYLOAD: begin
           if (uart_rx_valid) begin
-            payload[payload_index] <= uart_rx_data;
+            payload[payload_index] <= uart_rx_data[4:0];
+            if (uart_rx_data > 8'd25 || (opcode == OP_CONFIG && payload_index < 4'd3 && uart_rx_data > 8'd4)) payload_invalid <= 1'b1;
             crc_byte_in <= uart_rx_data;
             crc_update <= 1'b1;
             
-            if (payload_index == length - 1) begin
+            if (payload_index == length - 8'd1) begin
               state <= RX_CRC;
             end else begin
               payload_index <= payload_index + 1;
@@ -204,28 +208,31 @@ module packet_wrapper (
         
         RX_CRC: begin
           if (uart_rx_valid) begin
-            rx_crc <= uart_rx_data;
-            expected_crc <= crc_out;
+            crc_valid <= uart_rx_data == crc_out;
             state <= VALIDATE;
           end
         end
         
         VALIDATE: begin
+          resp_length <= 0; // Error replies never reuse previous data.
           // Check version and CRC
-          if (version != VERSION || rx_crc != expected_crc) begin
+          if (!version_valid || !crc_valid) begin
             // Invalid packet, drop silently
             state <= IDLE;
           end else begin
             // Dispatch based on opcode
             case (opcode)
-              OP_PING: state <= EXECUTE_PING;
+              OP_PING: begin
+                if (length == 0) state <= EXECUTE_PING;
+                else begin
+                  resp_status <= STATUS_INVALID;
+                  state <= BUILD_RESPONSE;
+                end
+              end
               OP_CONFIG: begin
-                if (length == 8'd9) begin
+                if (length == 8'd9 && !payload_invalid) begin
                   // Validate rotor and window/ring values
-                  if (payload[0] <= 8'd4 && payload[1] <= 8'd4 && payload[2] <= 8'd4 &&
-                      payload[0] != payload[1] && payload[0] != payload[2] && payload[1] != payload[2] &&
-                      payload[3] <= 8'd25 && payload[4] <= 8'd25 && payload[5] <= 8'd25 &&
-                      payload[6] <= 8'd25 && payload[7] <= 8'd25 && payload[8] <= 8'd25) begin
+                  if (payload[0] != payload[1] && payload[0] != payload[2] && payload[1] != payload[2]) begin
                     state <= EXECUTE_CONFIG;
                   end else begin
                     resp_status <= STATUS_INVALID;
@@ -237,7 +244,7 @@ module packet_wrapper (
                 end
               end
               OP_TRANSFORM: begin
-                if (length == 8'd1 && payload[0] <= 8'd25) begin
+                if (length == 8'd1 && !payload_invalid) begin
                   if (!core_busy) begin
                     state <= EXECUTE_TRANSFORM;
                   end else begin
@@ -351,7 +358,7 @@ module packet_wrapper (
         end
         
         TX_RESPONSE: begin
-          if (!uart_tx_busy) begin
+          if (!uart_tx_busy && !uart_tx_start) begin
             case (tx_index)
               4'd0: begin
                 // Marker (not in CRC)
@@ -369,9 +376,9 @@ module packet_wrapper (
               end
               4'd2: begin
                 // Sequence
-                uart_tx_data <= sequence;
+                uart_tx_data <= request_sequence;
                 uart_tx_start <= 1'b1;
-                crc_byte_in <= sequence;
+                crc_byte_in <= request_sequence;
                 crc_update <= 1'b1;
                 tx_index <= tx_index + 1;
               end
@@ -402,9 +409,9 @@ module packet_wrapper (
               default: begin
                 if (resp_index < resp_length) begin
                   // Data bytes
-                  uart_tx_data <= resp_data[resp_index];
+                  uart_tx_data <= resp_data[resp_index[1:0]];
                   uart_tx_start <= 1'b1;
-                  crc_byte_in <= resp_data[resp_index];
+                  crc_byte_in <= resp_data[resp_index[1:0]];
                   crc_update <= 1'b1;
                   resp_index <= resp_index + 1;
                   tx_index <= tx_index + 1;
@@ -421,6 +428,7 @@ module packet_wrapper (
         
         default: state <= IDLE;
       endcase
+      end
     end
   end
 

@@ -72,7 +72,7 @@ class EnigmaModel:
         letter1 = letter1.upper()
         letter2 = letter2.upper()
         
-        if not (letter1.isalpha() and letter2.isalpha() and 
+        if not (letter1 in "ABCDEFGHIJKLMNOPQRSTUVWXYZ" and letter2 in "ABCDEFGHIJKLMNOPQRSTUVWXYZ" and
                 len(letter1) == 1 and len(letter2) == 1):
             return False, "Plugboard entries must be single letters A-Z"
         
@@ -169,5 +169,9 @@ class EnigmaModel:
     
     @staticmethod
     def normalize_message(message: str) -> str:
-        """Normalize message to uppercase letters only"""
-        return ''.join(c for c in message.upper() if c.isalpha())
+        """Validate ASCII without computing or altering the board's input."""
+        if len(message) > 512:
+            raise ValueError("Message exceeds 512 characters")
+        if any(not (32 <= ord(c) <= 126 or c in "\t\r\n") for c in message):
+            raise ValueError("Only printable ASCII, tab, CR and LF are allowed")
+        return message

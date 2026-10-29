@@ -19,10 +19,10 @@
 // ============================================================================
 
 // UART to FPGA (Hardware Serial2)
-// ESP32 GPIO11 -> FPGA Pin 6 (FPGA TX, our RX)
-// ESP32 GPIO13 -> FPGA Pin 5 (FPGA RX, our TX)
-#define FPGA_UART_RX 11
-#define FPGA_UART_TX 13
+// ESP32 GPIO13 <- FPGA GPIO6 / package pin 19 (FPGA TX, our RX)
+// ESP32 GPIO11 -> FPGA GPIO5 / package pin 18 (FPGA RX, our TX)
+#define FPGA_UART_RX 13
+#define FPGA_UART_TX 11
 #define FPGA_UART_BAUD 115200
 
 // FPGA Configuration Pins
@@ -32,7 +32,7 @@
 #define FPGA_RESET_PIN 9    // FPGA reset (adjust per library)
 
 // Status LED (board-specific)
-#define STATUS_LED_PIN LED_BUILTIN  // Use built-in LED or specific GPIO
+#define STATUS_LED_PIN 21  // Use built-in LED or specific GPIO
 
 // ============================================================================
 // UART PROTOCOL CONSTANTS (from specification Section 5)
@@ -108,7 +108,7 @@
 // ============================================================================
 
 #define ENABLE_SELFTEST 1
-#define ENABLE_SERIAL_DEBUG 1
+#define ENABLE_SERIAL_DEBUG 0
 #define DISABLE_WIRELESS 1  // Security requirement
 
 // ============================================================================

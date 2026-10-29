@@ -65,9 +65,9 @@ module enigma_core_tb;
     cfg_data = 0;
     
     // Apply reset
-    repeat(5) @(posedge clk);
+    repeat(5) @(negedge clk);
     rst = 0;
-    repeat(2) @(posedge clk);
+    repeat(2) @(negedge clk);
     
     $display("=== Test Case 1: AAAAA -> BDZGO ===");
     // Default config is I,II,III (0,1,2), AAA windows, AAA rings
@@ -92,9 +92,9 @@ module enigma_core_tb;
     $display("=== Test Case 2: HELLOWORLD -> ILBDAAMTAZ ===");
     // Reset and reconfigure to AAA
     rst = 1;
-    repeat(5) @(posedge clk);
+    repeat(5) @(negedge clk);
     rst = 0;
-    repeat(2) @(posedge clk);
+    repeat(2) @(negedge clk);
     
     test_letter(5'd7, 5'd8, 5'd0, 5'd0, 5'd1);   // H -> I
     test_letter(5'd4, 5'd11, 5'd0, 5'd0, 5'd2);  // E -> L
@@ -112,17 +112,17 @@ module enigma_core_tb;
     $display("=== Test Case 3: Double-stepping ADU sequence ===");
     // Configure windows to ADU (0, 3, 20)
     rst = 1;
-    repeat(5) @(posedge clk);
+    repeat(5) @(negedge clk);
     rst = 0;
-    repeat(2) @(posedge clk);
+    repeat(2) @(negedge clk);
     
     // Set window positions
     cfg_we = 1;
-    cfg_addr = 4'd3; cfg_data = 5'd0; @(posedge clk);  // Left = A
-    cfg_addr = 4'd4; cfg_data = 5'd3; @(posedge clk);  // Middle = D
-    cfg_addr = 4'd5; cfg_data = 5'd20; @(posedge clk); // Right = U
+    cfg_addr = 4'd3; cfg_data = 5'd0; @(negedge clk);  // Left = A
+    cfg_addr = 4'd4; cfg_data = 5'd3; @(negedge clk);  // Middle = D
+    cfg_addr = 4'd5; cfg_data = 5'd20; @(negedge clk); // Right = U
     cfg_we = 0;
-    repeat(2) @(posedge clk);
+    repeat(2) @(negedge clk);
     
     // Letter 1: ADU -> ADV (right steps, not at notch yet)
     test_letter_nocheck(5'd0);
@@ -145,37 +145,37 @@ module enigma_core_tb;
     
     $display("Test Case 3: PASS");
     
-    $display("=== Test Case 4: Wraparound XYZ -> XZA ===");
+    $display("=== Test Case 4: Wraparound XYZ -> XYA ===");
     rst = 1;
-    repeat(5) @(posedge clk);
+    repeat(5) @(negedge clk);
     rst = 0;
-    repeat(2) @(posedge clk);
+    repeat(2) @(negedge clk);
     
     cfg_we = 1;
-    cfg_addr = 4'd3; cfg_data = 5'd23; @(posedge clk); // Left = X
-    cfg_addr = 4'd4; cfg_data = 5'd24; @(posedge clk); // Middle = Y
-    cfg_addr = 4'd5; cfg_data = 5'd25; @(posedge clk); // Right = Z
+    cfg_addr = 4'd3; cfg_data = 5'd23; @(negedge clk); // Left = X
+    cfg_addr = 4'd4; cfg_data = 5'd24; @(negedge clk); // Middle = Y
+    cfg_addr = 4'd5; cfg_data = 5'd25; @(negedge clk); // Right = Z
     cfg_we = 0;
-    repeat(2) @(posedge clk);
+    repeat(2) @(negedge clk);
     
     test_letter_nocheck(5'd0);
-    check_windows(5'd23, 5'd25, 5'd0, "After wraparound: XYZ->XZA");
+    check_windows(5'd23, 5'd24, 5'd0, "After wraparound: XYZ->XYA");
     
     $display("Test Case 4: PASS");
     
     $display("=== Test Case 5: Non-A rings BCD ===");
     rst = 1;
-    repeat(5) @(posedge clk);
+    repeat(5) @(negedge clk);
     rst = 0;
-    repeat(2) @(posedge clk);
+    repeat(2) @(negedge clk);
     
     // Set rings to BCD (1,2,3)
     cfg_we = 1;
-    cfg_addr = 4'd6; cfg_data = 5'd1; @(posedge clk); // Left ring = B
-    cfg_addr = 4'd7; cfg_data = 5'd2; @(posedge clk); // Middle ring = C
-    cfg_addr = 4'd8; cfg_data = 5'd3; @(posedge clk); // Right ring = D
+    cfg_addr = 4'd6; cfg_data = 5'd1; @(negedge clk); // Left ring = B
+    cfg_addr = 4'd7; cfg_data = 5'd2; @(negedge clk); // Middle ring = C
+    cfg_addr = 4'd8; cfg_data = 5'd3; @(negedge clk); // Right ring = D
     cfg_we = 0;
-    repeat(2) @(posedge clk);
+    repeat(2) @(negedge clk);
     
     // Feed 5 A's - results will differ from AAA ring setting
     // Just verify it completes and windows advance correctly
@@ -188,16 +188,16 @@ module enigma_core_tb;
     
     $display("=== Test Case 6: Invalid inputs ===");
     rst = 1;
-    repeat(5) @(posedge clk);
+    repeat(5) @(negedge clk);
     rst = 0;
-    repeat(2) @(posedge clk);
+    repeat(2) @(negedge clk);
     
     // Try invalid letter (26)
     start = 1;
     letter = 5'd26;
-    @(posedge clk);
+    @(negedge clk);
     start = 0;
-    repeat(10) @(posedge clk);
+    repeat(10) @(negedge clk);
     if (done) begin
       $fatal(1, "ERROR: Core accepted invalid letter 26");
     end
@@ -206,21 +206,21 @@ module enigma_core_tb;
     // Try start while busy
     letter = 5'd0;
     start = 1;
-    @(posedge clk);
+    @(negedge clk);
     start = 0;
-    @(posedge clk);
+    @(negedge clk);
     // Core should be busy now
     if (busy) begin
       start = 1; // Try to start again
-      @(posedge clk);
+      @(negedge clk);
       start = 0;
       // Wait for first operation to complete
       timeout_counter = 0;
       while (!done && timeout_counter < 100) begin
-        @(posedge clk);
+        @(negedge clk);
         timeout_counter = timeout_counter + 1;
       end
-      @(posedge clk);
+      @(negedge clk);
       // Check that windows only advanced once
       if (window_right != 5'd1) begin
         $fatal(1, "ERROR: Start while busy was not ignored, window_right=%d", window_right);
@@ -248,13 +248,13 @@ module enigma_core_tb;
     begin
       letter = in_letter;
       start = 1;
-      @(posedge clk);
+      @(negedge clk);
       start = 0;
       
       // Wait for done with timeout
       timeout_counter = 0;
       while (!done && timeout_counter < 64) begin
-        @(posedge clk);
+        @(negedge clk);
         timeout_counter = timeout_counter + 1;
       end
       
@@ -273,7 +273,7 @@ module enigma_core_tb;
                window_left, window_middle, window_right);
       end
       
-      @(posedge clk); // Wait one more cycle
+      @(negedge clk); // Wait one more cycle
     end
   endtask
   
@@ -283,12 +283,12 @@ module enigma_core_tb;
     begin
       letter = in_letter;
       start = 1;
-      @(posedge clk);
+      @(negedge clk);
       start = 0;
       
       timeout_counter = 0;
       while (!done && timeout_counter < 64) begin
-        @(posedge clk);
+        @(negedge clk);
         timeout_counter = timeout_counter + 1;
       end
       
@@ -296,7 +296,7 @@ module enigma_core_tb;
         $fatal(1, "ERROR: Core timeout after 64 clocks");
       end
       
-      @(posedge clk);
+      @(negedge clk);
     end
   endtask
   

@@ -23,7 +23,8 @@ module uart_rx #(
   localparam STOP = 3'd3;
   
   reg [2:0] state;
-  reg [8:0] clk_count;
+  localparam COUNTER_BITS = $clog2(CLKS_PER_BIT);
+  reg [COUNTER_BITS-1:0] clk_count;
   reg [2:0] bit_index;
   reg [7:0] rx_shift;
   
@@ -32,7 +33,7 @@ module uart_rx #(
       rx_sync1 <= 1'b1;
       rx_sync2 <= 1'b1;
       state <= IDLE;
-      clk_count <= 9'd0;
+      clk_count <= 0;
       bit_index <= 3'd0;
       rx_shift <= 8'd0;
       rx_data <= 8'd0;
@@ -51,7 +52,7 @@ module uart_rx #(
       case (state)
         IDLE: begin
           busy <= 1'b0;
-          clk_count <= 9'd0;
+          clk_count <= 0;
           bit_index <= 3'd0;
           // Detect start bit (idle-to-low transition)
           if (rx_sync2 == 1'b0) begin
@@ -65,7 +66,7 @@ module uart_rx #(
             // Sample at bit center
             if (rx_sync2 == 1'b0) begin
               // Valid start bit
-              clk_count <= 9'd0;
+              clk_count <= 0;
               state <= DATA;
             end else begin
               // False start bit (glitch)
@@ -78,7 +79,7 @@ module uart_rx #(
         
         DATA: begin
           if (clk_count == CLKS_PER_BIT - 1) begin
-            clk_count <= 9'd0;
+            clk_count <= 0;
             // Sample data bit (LSB first)
             rx_shift[bit_index] <= rx_sync2;
             
@@ -95,7 +96,7 @@ module uart_rx #(
         
         STOP: begin
           if (clk_count == CLKS_PER_BIT - 1) begin
-            clk_count <= 9'd0;
+            clk_count <= 0;
             // Check stop bit
             if (rx_sync2 == 1'b1) begin
               // Valid stop bit

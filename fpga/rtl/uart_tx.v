@@ -19,14 +19,15 @@ module uart_tx #(
   localparam STOP = 3'd3;
   
   reg [2:0] state;
-  reg [8:0] clk_count;
+  localparam COUNTER_BITS = $clog2(CLKS_PER_BIT);
+  reg [COUNTER_BITS-1:0] clk_count;
   reg [2:0] bit_index;
   reg [7:0] tx_shift;
   
   always @(posedge clk) begin
     if (rst) begin
       state <= IDLE;
-      clk_count <= 9'd0;
+      clk_count <= 0;
       bit_index <= 3'd0;
       tx_shift <= 8'd0;
       tx_serial <= 1'b1;
@@ -36,7 +37,7 @@ module uart_tx #(
         IDLE: begin
           tx_serial <= 1'b1;
           busy <= 1'b0;
-          clk_count <= 9'd0;
+          clk_count <= 0;
           bit_index <= 3'd0;
           
           if (tx_start) begin
@@ -50,7 +51,7 @@ module uart_tx #(
           tx_serial <= 1'b0;  // Start bit
           
           if (clk_count == CLKS_PER_BIT - 1) begin
-            clk_count <= 9'd0;
+            clk_count <= 0;
             state <= DATA;
           end else begin
             clk_count <= clk_count + 1;
@@ -61,7 +62,7 @@ module uart_tx #(
           tx_serial <= tx_shift[bit_index];  // LSB first
           
           if (clk_count == CLKS_PER_BIT - 1) begin
-            clk_count <= 9'd0;
+            clk_count <= 0;
             
             if (bit_index == 3'd7) begin
               bit_index <= 3'd0;
@@ -78,7 +79,7 @@ module uart_tx #(
           tx_serial <= 1'b1;  // Stop bit
           
           if (clk_count == CLKS_PER_BIT - 1) begin
-            clk_count <= 9'd0;
+            clk_count <= 0;
             state <= IDLE;
           end else begin
             clk_count <= clk_count + 1;

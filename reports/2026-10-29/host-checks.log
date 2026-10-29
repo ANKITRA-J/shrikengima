@@ -1,0 +1,173 @@
+Reference checks passed for all 60 rotor orders
+.......
+----------------------------------------------------------------------
+Ran 7 tests in 0.001s
+
+OK
+PASS: sequence wrap, zero length, opcode, CRC, deadline, impossible contact, no retry
+%Warning-WIDTHEXPAND: /Users/aayush/Documents/shrikengima/fpga/rtl/helpers.v:10:28: Operator COND expects 6 bits on the Conditional False, but Conditional False's SEL generates 5 bits.
+                                                                                  : ... note: In instance 'enigma_core_tb.dut'
+   10 |     inc26 = (tmp >= 6'd26) ? (tmp - 6'd26) : tmp[4:0];
+      |                            ^
+                      /Users/aayush/Documents/shrikengima/fpga/rtl/enigma_core.v:21:1: ... note: In file included from 'enigma_core.v'
+                      ... For warning description see https://verilator.org/warn/WIDTHEXPAND?v=0.000
+                      ... Use "/* verilator lint_off WIDTHEXPAND */" and lint_on around source to disable this message.
+%Warning-WIDTHTRUNC: /Users/aayush/Documents/shrikengima/fpga/rtl/helpers.v:10:11: Operator ASSIGN expects 5 bits on the Assign RHS, but Assign RHS's COND generates 6 bits.
+                                                                                 : ... note: In instance 'enigma_core_tb.dut'
+   10 |     inc26 = (tmp >= 6'd26) ? (tmp - 6'd26) : tmp[4:0];
+      |           ^
+                     /Users/aayush/Documents/shrikengima/fpga/rtl/enigma_core.v:21:1: ... note: In file included from 'enigma_core.v'
+%Warning-WIDTHEXPAND: /Users/aayush/Documents/shrikengima/fpga/rtl/helpers.v:21:28: Operator COND expects 6 bits on the Conditional False, but Conditional False's SEL generates 5 bits.
+                                                                                  : ... note: In instance 'enigma_core_tb.dut'
+   21 |     add26 = (tmp >= 6'd26) ? (tmp - 6'd26) : tmp[4:0];
+      |                            ^
+                      /Users/aayush/Documents/shrikengima/fpga/rtl/enigma_core.v:21:1: ... note: In file included from 'enigma_core.v'
+%Warning-WIDTHTRUNC: /Users/aayush/Documents/shrikengima/fpga/rtl/helpers.v:21:11: Operator ASSIGN expects 5 bits on the Assign RHS, but Assign RHS's COND generates 6 bits.
+                                                                                 : ... note: In instance 'enigma_core_tb.dut'
+   21 |     add26 = (tmp >= 6'd26) ? (tmp - 6'd26) : tmp[4:0];
+      |           ^
+                     /Users/aayush/Documents/shrikengima/fpga/rtl/enigma_core.v:21:1: ... note: In file included from 'enigma_core.v'
+- V e r i l a t i o n   R e p o r t:  rev v5.034
+- Verilator: Built from 0.327 MB sources in 10 modules, into 0.263 MB in 9 C++ files needing 0.001 MB
+- Verilator: Walltime 0.034 s (elab=0.003, cvt=0.015, bld=0.000); cpu 0.032 s on 1 threads
+-Info: /Users/aayush/Documents/shrikengima/fpga/sim/enigma_core_tb.v:57: $dumpvar ignored, as Verilated without --trace
+=== Test Case 1: AAAAA -> BDZGO ===
+Test Case 1: PASS
+=== Test Case 2: HELLOWORLD -> ILBDAAMTAZ ===
+Test Case 2: PASS
+=== Test Case 3: Double-stepping ADU sequence ===
+                                                        After letter 1: ADU->ADV:  0 321 OK
+                                                        After letter 2: ADV->AEW:  0 422 OK
+                                                        After letter 3: AEW->BFX:  1 523 OK
+                                                        After letter 4: BFX->BFY:  1 524 OK
+Test Case 3: PASS
+=== Test Case 4: Wraparound XYZ -> XYA ===
+                                                      After wraparound: XYZ->XYA: 2324 0 OK
+Test Case 4: PASS
+=== Test Case 5: Non-A rings BCD ===
+                                                  After 5 letters with BCD rings:  0 0 5 OK
+Test Case 5: PASS
+=== Test Case 6: Invalid inputs ===
+Invalid letter correctly rejected
+Start while busy correctly ignored
+Test Case 6: PASS
+
+========================================
+ALL TESTS PASSED
+========================================
+- /Users/aayush/Documents/shrikengima/fpga/sim/enigma_core_tb.v:238: Verilog $finish
+- S i m u l a t i o n   R e p o r t: Verilator 5.034
+- Verilator: $finish at 10us; walltime 0.003 s; speed 3.481 ms/s
+- Verilator: cpu 0.003 s on 1 threads; alloced 0 MB
+%Warning-WIDTHEXPAND: /Users/aayush/Documents/shrikengima/fpga/rtl/uart_rx.v:65:25: Operator EQ expects 32 or 5 bits on the LHS, but LHS's VARREF 'clk_count' generates 4 bits.
+                                                                                  : ... note: In instance 'packet_wrapper_tb.rx'
+   65 |           if (clk_count == (CLKS_PER_BIT - 1) / 2) begin
+      |                         ^~
+                      ... For warning description see https://verilator.org/warn/WIDTHEXPAND?v=0.000
+                      ... Use "/* verilator lint_off WIDTHEXPAND */" and lint_on around source to disable this message.
+%Warning-WIDTHEXPAND: /Users/aayush/Documents/shrikengima/fpga/rtl/uart_rx.v:81:25: Operator EQ expects 32 or 5 bits on the LHS, but LHS's VARREF 'clk_count' generates 4 bits.
+                                                                                  : ... note: In instance 'packet_wrapper_tb.rx'
+   81 |           if (clk_count == CLKS_PER_BIT - 1) begin
+      |                         ^~
+%Warning-WIDTHEXPAND: /Users/aayush/Documents/shrikengima/fpga/rtl/uart_rx.v:98:25: Operator EQ expects 32 or 5 bits on the LHS, but LHS's VARREF 'clk_count' generates 4 bits.
+                                                                                  : ... note: In instance 'packet_wrapper_tb.rx'
+   98 |           if (clk_count == CLKS_PER_BIT - 1) begin
+      |                         ^~
+%Warning-WIDTHEXPAND: /Users/aayush/Documents/shrikengima/fpga/rtl/uart_tx.v:53:25: Operator EQ expects 32 or 5 bits on the LHS, but LHS's VARREF 'clk_count' generates 4 bits.
+                                                                                  : ... note: In instance 'packet_wrapper_tb.tx'
+   53 |           if (clk_count == CLKS_PER_BIT - 1) begin
+      |                         ^~
+%Warning-WIDTHEXPAND: /Users/aayush/Documents/shrikengima/fpga/rtl/uart_tx.v:64:25: Operator EQ expects 32 or 5 bits on the LHS, but LHS's VARREF 'clk_count' generates 4 bits.
+                                                                                  : ... note: In instance 'packet_wrapper_tb.tx'
+   64 |           if (clk_count == CLKS_PER_BIT - 1) begin
+      |                         ^~
+%Warning-WIDTHEXPAND: /Users/aayush/Documents/shrikengima/fpga/rtl/uart_tx.v:81:25: Operator EQ expects 32 or 5 bits on the LHS, but LHS's VARREF 'clk_count' generates 4 bits.
+                                                                                  : ... note: In instance 'packet_wrapper_tb.tx'
+   81 |           if (clk_count == CLKS_PER_BIT - 1) begin
+      |                         ^~
+%Warning-WIDTHEXPAND: /Users/aayush/Documents/shrikengima/fpga/rtl/packet_wrapper.v:201:31: Operator EQ expects 8 bits on the LHS, but LHS's VARREF 'payload_index' generates 4 bits.
+                                                                                          : ... note: In instance 'packet_wrapper_tb.dut'
+  201 |             if (payload_index == length - 8'd1) begin
+      |                               ^~
+%Warning-WIDTHEXPAND: /Users/aayush/Documents/shrikengima/fpga/rtl/helpers.v:10:28: Operator COND expects 6 bits on the Conditional False, but Conditional False's SEL generates 5 bits.
+                                                                                  : ... note: In instance 'packet_wrapper_tb.core'
+   10 |     inc26 = (tmp >= 6'd26) ? (tmp - 6'd26) : tmp[4:0];
+      |                            ^
+                      /Users/aayush/Documents/shrikengima/fpga/rtl/enigma_core.v:21:1: ... note: In file included from 'enigma_core.v'
+%Warning-WIDTHTRUNC: /Users/aayush/Documents/shrikengima/fpga/rtl/helpers.v:10:11: Operator ASSIGN expects 5 bits on the Assign RHS, but Assign RHS's COND generates 6 bits.
+                                                                                 : ... note: In instance 'packet_wrapper_tb.core'
+   10 |     inc26 = (tmp >= 6'd26) ? (tmp - 6'd26) : tmp[4:0];
+      |           ^
+                     /Users/aayush/Documents/shrikengima/fpga/rtl/enigma_core.v:21:1: ... note: In file included from 'enigma_core.v'
+%Warning-WIDTHEXPAND: /Users/aayush/Documents/shrikengima/fpga/rtl/helpers.v:21:28: Operator COND expects 6 bits on the Conditional False, but Conditional False's SEL generates 5 bits.
+                                                                                  : ... note: In instance 'packet_wrapper_tb.core'
+   21 |     add26 = (tmp >= 6'd26) ? (tmp - 6'd26) : tmp[4:0];
+      |                            ^
+                      /Users/aayush/Documents/shrikengima/fpga/rtl/enigma_core.v:21:1: ... note: In file included from 'enigma_core.v'
+%Warning-WIDTHTRUNC: /Users/aayush/Documents/shrikengima/fpga/rtl/helpers.v:21:11: Operator ASSIGN expects 5 bits on the Assign RHS, but Assign RHS's COND generates 6 bits.
+                                                                                 : ... note: In instance 'packet_wrapper_tb.core'
+   21 |     add26 = (tmp >= 6'd26) ? (tmp - 6'd26) : tmp[4:0];
+      |           ^
+                     /Users/aayush/Documents/shrikengima/fpga/rtl/enigma_core.v:21:1: ... note: In file included from 'enigma_core.v'
+%Warning-WIDTHTRUNC: /Users/aayush/Documents/shrikengima/fpga/sim/packet_wrapper_tb.v:31:2: Operator TASKREF 'byte_in' expects 8 bits on the Function Argument, but Function Argument's VARREF 'seqnum' generates 32 bits.
+                                                                                          : ... note: In instance 'packet_wrapper_tb'
+   31 |  byte_in(seqnum); crc=update_crc(crc,seqnum);
+      |  ^~~~~~~
+%Warning-WIDTHTRUNC: /Users/aayush/Documents/shrikengima/fpga/sim/packet_wrapper_tb.v:31:23: Operator FUNCREF 'update_crc' expects 8 bits on the Function Argument, but Function Argument's VARREF 'seqnum' generates 32 bits.
+                                                                                           : ... note: In instance 'packet_wrapper_tb'
+   31 |  byte_in(seqnum); crc=update_crc(crc,seqnum);
+      |                       ^~~~~~~~~~
+%Warning-WIDTHEXPAND: /Users/aayush/Documents/shrikengima/fpga/sim/packet_wrapper_tb.v:35:14: Operator XOR expects 8 bits on the RHS, but RHS's VARREF 'corrupt' generates 1 bits.
+                                                                                            : ... note: In instance 'packet_wrapper_tb'
+   35 |  byte_in(crc ^ corrupt);
+      |              ^
+%Warning-WIDTHEXPAND: /Users/aayush/Documents/shrikengima/fpga/sim/packet_wrapper_tb.v:42:17: Operator ADD expects 32 bits on the RHS, but RHS's VARREF 'data_len' generates 8 bits.
+                                                                                            : ... note: In instance 'packet_wrapper_tb'
+   42 |  while(count < 7+data_len && t<4000)begin @(negedge clk);t=t+1;end
+      |                 ^
+%Warning-WIDTHEXPAND: /Users/aayush/Documents/shrikengima/fpga/sim/packet_wrapper_tb.v:43:15: Operator ADD expects 32 bits on the RHS, but RHS's VARREF 'data_len' generates 8 bits.
+                                                                                            : ... note: In instance 'packet_wrapper_tb'
+   43 |  if(count != 7+data_len)$fatal(1,"Response length: got %0d want %0d",count,7+data_len);
+      |               ^
+- V e r i l a t i o n   R e p o r t:  rev v5.034
+- Verilator: Built from 0.293 MB sources in 10 modules, into 1.682 MB in 10 C++ files needing 0.000 MB
+- Verilator: Walltime 0.124 s (elab=0.004, cvt=0.087, bld=0.000); cpu 0.120 s on 1 threads
+PASS: real UART serialization, CRC, errors, timeout recovery, all 60 rotor orders
+- /Users/aayush/Documents/shrikengima/fpga/sim/packet_wrapper_tb.v:82: Verilog $finish
+- S i m u l a t i o n   R e p o r t: Verilator 5.034
+- Verilator: $finish at 20ms; walltime 12.718 s; speed 1.896 ms/s
+- Verilator: cpu 10.467 s on 1 threads; alloced 0 MB
+%Warning-WIDTHEXPAND: /Users/aayush/Documents/shrikengima/fpga/rtl/packet_wrapper.v:201:31: Operator EQ expects 8 bits on the LHS, but LHS's VARREF 'payload_index' generates 4 bits.
+                                                                                          : ... note: In instance 'enigma_top_tb.dut.packet_wrapper_inst'
+  201 |             if (payload_index == length - 8'd1) begin
+      |                               ^~
+                      ... For warning description see https://verilator.org/warn/WIDTHEXPAND?v=0.000
+                      ... Use "/* verilator lint_off WIDTHEXPAND */" and lint_on around source to disable this message.
+%Warning-WIDTHEXPAND: /Users/aayush/Documents/shrikengima/fpga/rtl/helpers.v:10:28: Operator COND expects 6 bits on the Conditional False, but Conditional False's SEL generates 5 bits.
+                                                                                  : ... note: In instance 'enigma_top_tb.dut.enigma_core_inst'
+   10 |     inc26 = (tmp >= 6'd26) ? (tmp - 6'd26) : tmp[4:0];
+      |                            ^
+                      /Users/aayush/Documents/shrikengima/fpga/rtl/enigma_core.v:21:1: ... note: In file included from 'enigma_core.v'
+%Warning-WIDTHTRUNC: /Users/aayush/Documents/shrikengima/fpga/rtl/helpers.v:10:11: Operator ASSIGN expects 5 bits on the Assign RHS, but Assign RHS's COND generates 6 bits.
+                                                                                 : ... note: In instance 'enigma_top_tb.dut.enigma_core_inst'
+   10 |     inc26 = (tmp >= 6'd26) ? (tmp - 6'd26) : tmp[4:0];
+      |           ^
+                     /Users/aayush/Documents/shrikengima/fpga/rtl/enigma_core.v:21:1: ... note: In file included from 'enigma_core.v'
+%Warning-WIDTHEXPAND: /Users/aayush/Documents/shrikengima/fpga/rtl/helpers.v:21:28: Operator COND expects 6 bits on the Conditional False, but Conditional False's SEL generates 5 bits.
+                                                                                  : ... note: In instance 'enigma_top_tb.dut.enigma_core_inst'
+   21 |     add26 = (tmp >= 6'd26) ? (tmp - 6'd26) : tmp[4:0];
+      |                            ^
+                      /Users/aayush/Documents/shrikengima/fpga/rtl/enigma_core.v:21:1: ... note: In file included from 'enigma_core.v'
+%Warning-WIDTHTRUNC: /Users/aayush/Documents/shrikengima/fpga/rtl/helpers.v:21:11: Operator ASSIGN expects 5 bits on the Assign RHS, but Assign RHS's COND generates 6 bits.
+                                                                                 : ... note: In instance 'enigma_top_tb.dut.enigma_core_inst'
+   21 |     add26 = (tmp >= 6'd26) ? (tmp - 6'd26) : tmp[4:0];
+      |           ^
+                     /Users/aayush/Documents/shrikengima/fpga/rtl/enigma_core.v:21:1: ... note: In file included from 'enigma_core.v'
+- V e r i l a t i o n   R e p o r t:  rev v5.034
+- Verilator: Built from 0.282 MB sources in 10 modules, into 0.367 MB in 8 C++ files needing 0.000 MB
+- Verilator: Walltime 0.138 s (elab=0.013, cvt=0.073, bld=0.000); cpu 0.096 s on 1 threads
+PASS: 50 MHz top, divided clock, power-on reset, physical UART framing, A -> B and built-in LED output
+- /Users/aayush/Documents/shrikengima/fpga/sim/enigma_top_tb.v:61: Verilog $finish
+- S i m u l a t i o n   R e p o r t: Verilator 5.034
+- Verilator: $finish at 5ms; walltime 1.408 s; speed 3.928 ms/s
+- Verilator: cpu 1.210 s on 1 threads; alloced 0 MB

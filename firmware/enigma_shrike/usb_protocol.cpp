@@ -1,293 +1,217 @@
-// USB protocol implementation
-
+// USB API specified in docs/SPEC.md. Only the FPGA computes the cipher.
 #include "usb_protocol.h"
+#include "selftest.h"
+#include "fpga_loader.h"
+namespace {
+constexpr size_t LINE_LIMIT = 4096, TEXT_LIMIT = 512;
+char line[LINE_LIMIT + 1];
+size_t used = 0;
+bool dropping = false, ready = false;
+unsigned long last_byte = 0;
+int request_id = -1;
+uint8_t rotors[3] = {0,1,2}, initial[3] = {0,0,0}, rings[3] = {0,0,0};
+const char* rotor_names[] = {"I", "II", "III", "IV", "V"};
 
-// Static member initialization
-bool USBProtocol::ready_ = false;
-char USBProtocol::rx_buffer_[MAX_MESSAGE_LENGTH];
-size_t USBProtocol::rx_index_ = 0;
-
-void USBProtocol::init() {
-  Serial.begin(USB_BAUD);
-  rx_index_ = 0;
-  ready_ = false;
-  
-  DEBUG_PRINTLN("USBProtocol: Initialized");
+String positions(const uint8_t* values) {
+  char s[4] = {char('A'+values[0]), char('A'+values[1]), char('A'+values[2]), 0};
+  return String(s);
 }
-
-void USBProtocol::process() {
-  // Non-blocking read
-  while (Serial.available() && rx_index_ < MAX_MESSAGE_LENGTH - 1) {
-    char c = Serial.read();
-    
-    if (c == '\n' || c == '\r') {
-      if (rx_index_ > 0) {
-        rx_buffer_[rx_index_] = '\0';
-        processMessage(rx_buffer_);
-        rx_index_ = 0;
-      }
-    } else {
-      rx_buffer_[rx_index_++] = c;
-    }
-  }
-  
-  // Buffer overflow protection
-  if (rx_index_ >= MAX_MESSAGE_LENGTH - 1) {
-    sendError("Command too long");
-    rx_index_ = 0;
-  }
-}
-
-bool USBProtocol::isReady() {
-  return ready_;
-}
-
-void USBProtocol::setReady(bool ready) {
-  ready_ = ready;
-  DEBUG_PRINTF("USBProtocol: Ready = %d\n", ready);
-}
-
-void USBProtocol::sendStatus(const char* status, const char* message) {
-  StaticJsonDocument<256> doc;
-  doc["status"] = status;
-  if (message) doc["message"] = message;
-  
+void emit(JsonDocument& doc) {
+  if (request_id < 0) doc["id"] = nullptr;
+  else doc["id"] = request_id;
   serializeJson(doc, Serial);
   Serial.println();
 }
-
-void USBProtocol::sendError(const char* error) {
-  StaticJsonDocument<256> doc;
-  doc["status"] = "error";
-  doc["error"] = error;
-  
-  serializeJson(doc, Serial);
-  Serial.println();
-}
-
-void USBProtocol::processMessage(const char* message) {
-  DEBUG_PRINTF("USBProtocol: RX: %s\n", message);
-  
+void fail(const char* code, const char* message, int processed = -1) {
   StaticJsonDocument<512> doc;
-  DeserializationError error = deserializeJson(doc, message);
-  
-  if (error) {
-    sendError("Invalid JSON");
-    return;
+  doc["ok"] = false;
+  JsonObject err = doc.createNestedObject("error");
+  err["code"] = code;
+  err["message"] = message;
+  if (processed >= 0) {
+    err["letters_processed"] = processed;
+    err["state_certain"] = UARTProtocol::isStateCertain();
   }
-  
-  if (!doc.containsKey("cmd")) {
-    sendError("Missing 'cmd' field");
-    return;
-  }
-  
-  const char* cmd = doc["cmd"];
-  
-  if (strcmp(cmd, "ping") == 0) {
-    handlePing(doc);
-  } else if (strcmp(cmd, "config") == 0) {
-    handleConfig(doc);
-  } else if (strcmp(cmd, "encrypt") == 0) {
-    handleEncrypt(doc);
-  } else if (strcmp(cmd, "decrypt") == 0) {
-    handleDecrypt(doc);
-  } else if (strcmp(cmd, "reset") == 0) {
-    handleReset(doc);
-  } else if (strcmp(cmd, "status") == 0) {
-    handleStatus(doc);
-  } else {
-    sendError("Unknown command");
-  }
+  emit(doc);
 }
-
-void USBProtocol::handlePing(JsonDocument& cmd) {
-  StaticJsonDocument<256> response;
-  response["status"] = "ok";
-  response["firmware"] = FIRMWARE_VERSION;
-  response["board"] = BOARD_NAME;
-  response["ready"] = ready_;
-  
-  uint8_t fpga_version;
-  if (UARTProtocol::ping(&fpga_version)) {
-    response["fpga_version"] = fpga_version;
+bool allowed(JsonObject obj, const char* fields) {
+  for (JsonPair item : obj) {
+    String key = String("|") + item.key().c_str() + "|";
+    if (!strstr(fields, key.c_str())) return false;
   }
-  
-  serializeJson(response, Serial);
-  Serial.println();
-}
-
-void USBProtocol::handleConfig(JsonDocument& cmd) {
-  if (!ready_) {
-    sendError("Board not ready");
-    return;
-  }
-  
-  // Extract configuration
-  if (!cmd.containsKey("rotors") || !cmd.containsKey("windows") || !cmd.containsKey("rings")) {
-    sendError("Missing configuration fields");
-    return;
-  }
-  
-  JsonArray rotors_arr = cmd["rotors"];
-  JsonArray windows_arr = cmd["windows"];
-  JsonArray rings_arr = cmd["rings"];
-  
-  if (rotors_arr.size() != 3 || windows_arr.size() != 3 || rings_arr.size() != 3) {
-    sendError("Invalid array sizes");
-    return;
-  }
-  
-  uint8_t rotors[3], windows[3], rings[3];
-  for (int i = 0; i < 3; i++) {
-    rotors[i] = rotors_arr[i];
-    windows[i] = windows_arr[i];
-    rings[i] = rings_arr[i];
-    
-    // Validate ranges
-    if (rotors[i] > 4 || windows[i] > 25 || rings[i] > 25) {
-      sendError("Value out of range");
-      return;
-    }
-  }
-  
-  // Validate distinct rotors
-  if (rotors[0] == rotors[1] || rotors[0] == rotors[2] || rotors[1] == rotors[2]) {
-    sendError("Rotors must be distinct");
-    return;
-  }
-  
-  // Configure plugboard if provided
-  if (cmd.containsKey("plugboard")) {
-    Plugboard::clear();
-    if (!applyPlugboard(cmd["plugboard"])) {
-      sendError("Invalid plugboard configuration");
-      return;
-    }
-  }
-  
-  // Send to FPGA
-  if (!UARTProtocol::config(rotors, windows, rings)) {
-    sendError("FPGA configuration failed");
-    return;
-  }
-  
-  StaticJsonDocument<256> response;
-  response["status"] = "ok";
-  response["windows"] = windows_arr;
-  
-  serializeJson(response, Serial);
-  Serial.println();
-}
-
-void USBProtocol::handleEncrypt(JsonDocument& cmd) {
-  if (!ready_) {
-    sendError("Board not ready");
-    return;
-  }
-  
-  if (!cmd.containsKey("message")) {
-    sendError("Missing message field");
-    return;
-  }
-  
-  const char* message = cmd["message"];
-  String result;
-  uint8_t final_windows[3];
-  
-  if (!transformMessage(message, result, final_windows)) {
-    sendError("Encryption failed");
-    return;
-  }
-  
-  StaticJsonDocument<512> response;
-  response["status"] = "ok";
-  response["result"] = result;
-  
-  JsonArray windows_arr = response.createNestedArray("windows");
-  windows_arr.add(final_windows[0]);
-  windows_arr.add(final_windows[1]);
-  windows_arr.add(final_windows[2]);
-  
-  serializeJson(response, Serial);
-  Serial.println();
-}
-
-void USBProtocol::handleDecrypt(JsonDocument& cmd) {
-  // Encryption and decryption are the same in Enigma
-  handleEncrypt(cmd);
-}
-
-void USBProtocol::handleReset(JsonDocument& cmd) {
-  if (!UARTProtocol::reset()) {
-    sendError("FPGA reset failed");
-    return;
-  }
-  
-  Plugboard::clear();
-  sendStatus("ok", "Reset complete");
-}
-
-void USBProtocol::handleStatus(JsonDocument& cmd) {
-  uint8_t windows[3];
-  bool state_ok = UARTProtocol::readState(windows);
-  
-  StaticJsonDocument<256> response;
-  response["status"] = "ok";
-  response["ready"] = ready_;
-  response["state_certain"] = UARTProtocol::isStateCertain();
-  
-  if (state_ok) {
-    JsonArray windows_arr = response.createNestedArray("windows");
-    windows_arr.add(windows[0]);
-    windows_arr.add(windows[1]);
-    windows_arr.add(windows[2]);
-  }
-  
-  serializeJson(response, Serial);
-  Serial.println();
-}
-
-bool USBProtocol::applyPlugboard(JsonArray plugboard) {
-  for (JsonVariant pair : plugboard) {
-    const char* pair_str = pair;
-    if (strlen(pair_str) != 2) {
-      return false;
-    }
-    
-    if (!Plugboard::setPair(pair_str[0], pair_str[1])) {
-      return false;
-    }
-  }
-  
-  return Plugboard::isValid();
-}
-
-bool USBProtocol::transformMessage(const char* message, String& result, 
-                                    uint8_t* final_windows) {
-  result = "";
-  
-  for (size_t i = 0; message[i] != '\0'; i++) {
-    char c = toupper(message[i]);
-    
-    if (c < 'A' || c > 'Z') {
-      // Skip non-letters
-      continue;
-    }
-    
-    // Apply input plugboard
-    char plugged_in = Plugboard::map(c);
-    uint8_t contact_in = plugged_in - 'A';
-    
-    // Transform through FPGA
-    uint8_t contact_out;
-    if (!UARTProtocol::transform(contact_in, &contact_out, final_windows)) {
-      return false;
-    }
-    
-    // Apply output plugboard
-    char plugged_out = Plugboard::map('A' + contact_out);
-    result += plugged_out;
-  }
-  
   return true;
+}
+bool parsePositions(JsonVariant value, uint8_t* out) {
+  if (!value.is<const char*>()) return false;
+  JsonString s = value.as<JsonString>();
+  if (s.size() != 3) return false;
+  for (int i=0;i<3;i++) {
+    if (s.c_str()[i] < 'A' || s.c_str()[i] > 'Z') return false;
+    out[i] = s.c_str()[i] - 'A';
+  }
+  return true;
+}
+bool applyInitial() {
+  uint8_t windows[3]; memcpy(windows, initial, 3);
+  return UARTProtocol::config(rotors, windows, rings);
+}
+void settings(JsonDocument& doc) {
+  auto r = doc.createNestedArray("rotors");
+  for (auto id : rotors) r.add(rotor_names[id]);
+  doc["initial_positions"] = positions(initial);
+  doc["rings"] = positions(rings);
+  auto p = doc.createNestedArray("plugs");
+  for (uint8_t i=0;i<Plugboard::getPairCount();i++) {
+    char pair[3] = {}; Plugboard::getPair(i, &pair[0], &pair[1]); p.add(String(pair));
+  }
+}
+}
+void USBProtocol::init() {
+  // Hold a complete bounded JSON line even when USB delivers a burst.
+  Serial.setRxBufferSize(LINE_LIMIT + 64);
+  Serial.setTxBufferSize(LINE_LIMIT + 64);
+  Serial.begin(USB_BAUD); used = 0; dropping = false; ready = false;
+}
+bool USBProtocol::isReady() { return ready; }
+void USBProtocol::setReady(bool value) { ready = value; }
+void USBProtocol::sendError(const char* message) { fail("NOT_READY", message); }
+void USBProtocol::process() {
+  if (used && millis() - last_byte >= 2000) {
+    used = 0; request_id = -1; fail("BAD_JSON", "Partial line timed out");
+  }
+  while (Serial.available()) {
+    char c = Serial.read(); last_byte = millis();
+    if (dropping) { if (c == '\n') dropping = false; continue; }
+    if (c == '\n') {
+      line[used] = 0;
+      if (used) processMessage(line);
+      used = 0;
+    } else if (used == LINE_LIMIT) {
+      used = 0; dropping = true; request_id = -1; fail("TOO_LONG", "JSON line exceeds 4096 bytes");
+    } else if (c == '\0') {
+      used = 0; dropping = true; request_id = -1; fail("BAD_JSON", "NUL in JSON line");
+    } else line[used++] = c;
+  }
+}
+void USBProtocol::processMessage(const char* message) {
+  request_id = -1;
+  DynamicJsonDocument doc(8192);
+  if (deserializeJson(doc, message) || !doc.is<JsonObject>()) { fail("BAD_JSON", "Expected a JSON object"); return; }
+  JsonVariant id = doc["id"];
+  if (!id.is<int>() || id.is<bool>() || id.as<int>() < 0 || id.as<int>() > 65535) {
+    fail("INVALID_REQUEST", "id must be an integer from 0 to 65535"); return;
+  }
+  request_id = id.as<int>();
+  if (!doc["cmd"].is<const char*>()) { fail("INVALID_REQUEST", "cmd must be a string"); return; }
+  const char* cmd = doc["cmd"];
+  // Reject embedded NULs, which strcmp would otherwise silently truncate.
+  if (doc["cmd"].as<JsonString>().size() != strlen(cmd)) { fail("INVALID_REQUEST", "Invalid command"); return; }
+  const bool configure = strcmp(cmd,"configure") == 0;
+  const bool process = strcmp(cmd,"process") == 0;
+  if (!allowed(doc.as<JsonObject>(), configure ? "|id||cmd||rotors||positions||rings||plugs|" :
+      process ? "|id||cmd||mode||text|" : "|id||cmd|")) {
+    fail("INVALID_REQUEST", "Unknown field"); return;
+  }
+  DynamicJsonDocument response(2048);
+  response["ok"] = true;
+  if (!strcmp(cmd,"hello")) {
+    response["firmware"] = FIRMWARE_VERSION;
+    response["ready"] = ready;
+    if (!ready) { response["loader_status"] = FPGALoader::getStatus(); response["selftest_status"] = Selftest::getLastError(); response["bitstream_bytes"] = FPGALoader::getBitstreamSize(); }
+    response["engine"] = "fpga_enigma";
+    response["max_line_bytes"] = LINE_LIMIT;
+    response["max_text_bytes"] = TEXT_LIMIT;
+    emit(response); return;
+  }
+  if (!strcmp(cmd,"status")) {
+    response["ready"] = ready;
+    if (!ready) { response["loader_status"] = FPGALoader::getStatus(); response["selftest_status"] = Selftest::getLastError(); response["bitstream_bytes"] = FPGALoader::getBitstreamSize(); }
+    settings(response);
+    uint8_t windows[3];
+    if (ready && UARTProtocol::readState(windows)) response["final_positions"] = positions(windows);
+    response["state_certain"] = UARTProtocol::isStateCertain();
+    emit(response); return;
+  }
+  if (!configure && !process && strcmp(cmd,"reset") && strcmp(cmd,"selftest")) {
+    fail("INVALID_REQUEST", "Unknown command"); return;
+  }
+  if (!ready) { fail("NOT_READY", "FPGA has not passed startup verification"); return; }
+  if (configure) {
+    uint8_t next_rotors[3], next_windows[3], next_rings[3];
+    JsonArray ids = doc["rotors"].as<JsonArray>();
+    JsonArray pairs = doc["plugs"].as<JsonArray>();
+    if (ids.isNull() || ids.size()!=3 || pairs.isNull() || pairs.size()>13 ||
+        !parsePositions(doc["positions"],next_windows) || !parsePositions(doc["rings"],next_rings)) {
+      fail("INVALID_SETTINGS", "Invalid rotors, positions, rings or plugs"); return;
+    }
+    for (int i=0;i<3;i++) {
+      next_rotors[i] = 255;
+      for (int j=0;j<5;j++) if (ids[i].is<const char*>() && ids[i].as<String>() == rotor_names[j]) next_rotors[i]=j;
+      if (next_rotors[i]==255) { fail("INVALID_SETTINGS", "Unknown rotor"); return; }
+    }
+    if (next_rotors[0]==next_rotors[1] || next_rotors[0]==next_rotors[2] || next_rotors[1]==next_rotors[2]) {
+      fail("INVALID_SETTINGS", "Rotors must be distinct"); return;
+    }
+    bool seen[26] = {};
+    for (JsonVariant pair : pairs) {
+      if (!pair.is<const char*>() || pair.as<JsonString>().size()!=2) { fail("INVALID_SETTINGS", "Invalid plug pair"); return; }
+      const char* s = pair.as<const char*>();
+      if (s[0]<'A'||s[0]>'Z'||s[1]<'A'||s[1]>'Z'||s[0]==s[1]||seen[s[0]-'A']||seen[s[1]-'A']) {
+        fail("INVALID_SETTINGS", "Plug pairs must be disjoint ASCII letters"); return;
+      }
+      seen[s[0]-'A'] = seen[s[1]-'A'] = true;
+    }
+    if (!UARTProtocol::config(next_rotors,next_windows,next_rings)) { fail("FPGA_PROTOCOL", "Configuration failed"); return; }
+    memcpy(rotors,next_rotors,3); memcpy(initial,next_windows,3); memcpy(rings,next_rings,3);
+    Plugboard::clear();
+    for (JsonVariant pair : pairs) { const char* s=pair.as<const char*>(); Plugboard::setPair(s[0],s[1]); }
+    settings(response); response["final_positions"] = positions(initial); emit(response); return;
+  }
+  if (!strcmp(cmd,"reset")) {
+    if (!UARTProtocol::reset()) { fail("FPGA_PROTOCOL", "Reset failed"); return; }
+    for (int i=0;i<3;i++) { rotors[i]=i; initial[i]=0; rings[i]=0; }
+    Plugboard::clear(); settings(response); response["final_positions"]="AAA"; emit(response); return;
+  }
+  if (!strcmp(cmd,"selftest")) {
+    bool passed = Selftest::run();
+    bool restored = applyInitial();
+    if (!restored) ready=false;
+    if (!passed || !restored) { fail("SELFTEST_FAILED", restored ? Selftest::getLastError() : "Could not restore settings"); return; }
+    response["final_positions"] = positions(initial); emit(response); return;
+  }
+  if (!doc["text"].is<const char*>() || !doc["mode"].is<const char*>() ||
+      (doc["mode"].as<String>()!="encrypt" && doc["mode"].as<String>()!="decrypt")) {
+    fail("INVALID_REQUEST", "Expected mode encrypt/decrypt and text string"); return;
+  }
+  JsonString text = doc["text"].as<JsonString>();
+  if (text.size()>TEXT_LIMIT) { fail("TOO_LONG", "Message exceeds 512 bytes"); return; }
+  for (size_t i=0;i<text.size();i++) {
+    uint8_t c=text.c_str()[i];
+    if (!(c>=32 && c<=126) && c!='\t' && c!='\n' && c!='\r') { fail("INVALID_TEXT", "Only printable ASCII, tab, CR and LF are allowed"); return; }
+  }
+  // Reconfiguration is deliberate recovery; never automatically replay a letter.
+  if (!applyInitial()) { fail("FPGA_PROTOCOL", "Could not restore initial settings", 0); return; }
+  String result; result.reserve(text.size());
+  uint8_t windows[3]; memcpy(windows,initial,3);
+  int processed=0;
+  for (size_t i=0;i<text.size();i++) {
+    char c=text.c_str()[i]; if (c>='a'&&c<='z') c-=32;
+    if (c>='A'&&c<='Z') {
+      uint8_t out;
+      if (!UARTProtocol::transform(Plugboard::map(c)-'A', &out, windows)) {
+        UARTProtocol::markStateUncertain(); fail("FPGA_PROTOCOL", "Transform failed; reconfigure before retrying", processed); return;
+      }
+      result += Plugboard::map('A'+out); processed++;
+    } else result += c;
+  }
+  uint8_t readback[3];
+  if (!UARTProtocol::readState(readback) || memcmp(windows,readback,3)) {
+    UARTProtocol::markStateUncertain(); fail("FPGA_PROTOCOL", "Final state verification failed", processed); return;
+  }
+  response["result"]=result;
+  response["engine"]="fpga_enigma";
+  response["initial_positions"]=positions(initial);
+  response["final_positions"]=positions(windows);
+  response["letters_processed"]=processed;
+  emit(response);
 }

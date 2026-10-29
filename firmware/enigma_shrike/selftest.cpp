@@ -90,9 +90,9 @@ bool Selftest::testBasicVector() {
     return false;
   }
   
-  // Verify final windows: AAE (0 0 4)
-  if (final_windows[0] != 0 || final_windows[1] != 0 || final_windows[2] != 4) {
-    DEBUG_PRINTF("Selftest: Window mismatch: got %d %d %d, expected 0 0 4\n",
+  // Verify final windows: AAF (0 0 5)
+  if (final_windows[0] != 0 || final_windows[1] != 0 || final_windows[2] != 5) {
+    DEBUG_PRINTF("Selftest: Window mismatch: got %d %d %d, expected 0 0 5\n",
                  final_windows[0], final_windows[1], final_windows[2]);
     return false;
   }

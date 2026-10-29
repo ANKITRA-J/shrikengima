@@ -1,184 +1,117 @@
-"""
-Serial communication manager for Shrike Fi Enigma
-Handles USB serial connection to ESP32 firmware
-"""
-
+"""Single-outstanding-request client for the FPGA USB API in docs/SPEC.md."""
 import json
 import time
-from typing import List, Dict, Optional, Tuple
 import serial
 import serial.tools.list_ports
 
 
 class SerialManager:
-    """Manages USB serial communication with ESP32 firmware"""
-    
+    ROTORS = ("I", "II", "III", "IV", "V")
+
     def __init__(self):
-        self.port: Optional[serial.Serial] = None
-        self.port_name: str = ""
-        self.timeout: float = 2.0  # 2 second timeout for responses
-        
-    def list_ports(self) -> List[Tuple[str, str]]:
-        """
-        List available serial ports
-        Returns: List of (port_name, description) tuples
-        """
-        ports = []
-        for port in serial.tools.list_ports.comports():
-            # Filter for likely ESP32 devices
-            desc = port.description or ""
-            if port.device:
-                ports.append((port.device, desc))
-        return ports
-    
-    def connect(self, port_name: str, baud: int = 115200) -> Tuple[bool, str]:
-        """
-        Connect to serial port
-        Returns: (success, message)
-        """
+        self.port = None
+        self.port_name = ""
+        self.timeout = 2.0
+        self.next_id = 0
+
+    def list_ports(self):
+        return [(p.device, p.description or "") for p in serial.tools.list_ports.comports() if p.device]
+
+    def connect(self, port_name, baud=115200):
         try:
-            self.port = serial.Serial(
-                port=port_name,
-                baudrate=baud,
-                bytesize=serial.EIGHTBITS,
-                parity=serial.PARITY_NONE,
-                stopbits=serial.STOPBITS_ONE,
-                timeout=self.timeout
-            )
+            self.port = serial.Serial(port_name, baudrate=baud, timeout=0.1, write_timeout=2)
             self.port_name = port_name
-            
-            # Clear any garbage in buffers
-            time.sleep(0.5)
-            self.port.reset_input_buffer()
-            self.port.reset_output_buffer()
-            
-            # Test connection with ping
-            success, result = self.ping()
-            if success:
-                return True, f"Connected to {port_name}"
-            else:
-                self.disconnect()
-                return False, f"Board not responding: {result}"
-                
-        except serial.SerialException as e:
-            return False, f"Connection failed: {str(e)}"
-        except Exception as e:
-            return False, f"Unexpected error: {str(e)}"
-    
+            # Opening USB CDC may reset the MCU. Allow bounded boot time.
+            deadline = time.monotonic() + 10
+            result = {"error": "Board startup timed out"}
+            while time.monotonic() < deadline:
+                success, result = self.ping()
+                if success and result.get("ready") is True and result.get("engine") == "fpga_enigma":
+                    return True, f"Connected to {port_name} (FPGA verified)"
+                time.sleep(0.2)
+            self.disconnect()
+            return False, result.get("error", "FPGA not ready: " + result.get("loader_status", "") + "; " + result.get("selftest_status", ""))
+        except (serial.SerialException, OSError) as exc:
+            self.disconnect()
+            return False, str(exc)
+
     def disconnect(self):
-        """Close serial connection"""
-        if self.port and self.port.is_open:
+        if self.port is not None:
             self.port.close()
         self.port = None
         self.port_name = ""
-    
-    def is_connected(self) -> bool:
-        """Check if connected to board"""
+
+    def is_connected(self):
         return self.port is not None and self.port.is_open
-    
-    def send_command(self, cmd: dict) -> Tuple[bool, Dict]:
-        """
-        Send JSON command and receive response
-        Returns: (success, response_dict)
-        """
+
+    def send_command(self, cmd):
         if not self.is_connected():
             return False, {"error": "Not connected"}
-        
+        request_id = self.next_id
+        self.next_id = (self.next_id + 1) % 65536
+        request = dict(cmd, id=request_id)
+        wire = json.dumps(request, ensure_ascii=True).encode("ascii")
+        if len(wire) > 4096:
+            return False, {"error": "JSON line exceeds 4096 bytes"}
+        # Worst case: 512 FPGA transactions, each bounded by 100 ms.
+        timeout = 55 if cmd["cmd"] == "process" else 10 if cmd["cmd"] == "selftest" else self.timeout
         try:
-            # Send command as JSON + newline
-            cmd_str = json.dumps(cmd) + "\n"
-            self.port.write(cmd_str.encode('utf-8'))
-            self.port.flush()
-            
-            # Read response line
-            response_line = self.port.readline().decode('utf-8').strip()
-            
-            if not response_line:
-                return False, {"error": "No response from board (timeout)"}
-            
-            # Parse JSON response
-            try:
-                response = json.loads(response_line)
-                
-                # Check for error status
-                if response.get("status") == "error":
-                    return False, response
-                
+            self.port.write(wire + b"\n")
+            deadline = time.monotonic() + timeout
+            buffer = bytearray()
+            while time.monotonic() < deadline:
+                chunk = self.port.read(1)
+                if not chunk:
+                    continue
+                buffer.extend(chunk)
+                if len(buffer) > 8192:
+                    raise ValueError("Oversize board response")
+                if chunk != b"\n":
+                    continue
+                response = json.loads(buffer.decode("utf-8"))
+                buffer.clear()
+                if not isinstance(response, dict):
+                    raise ValueError("Board response must be an object")
+                if type(response.get("id")) is not int or response["id"] != request_id:
+                    continue  # Stale response from an earlier request; never display it.
+                if type(response.get("ok")) is not bool:
+                    raise ValueError("Missing boolean ok in response")
+                if not response["ok"]:
+                    error = response.get("error", {})
+                    return False, {"error": error.get("message", "Board error") if isinstance(error, dict) else str(error), "details": error}
+                if cmd["cmd"] == "process":
+                    if response.get("engine") != "fpga_enigma" or not isinstance(response.get("result"), str):
+                        raise ValueError("Invalid FPGA result")
+                if "final_positions" in response:
+                    positions = response["final_positions"]
+                    if not isinstance(positions, str) or len(positions) != 3 or any(c not in "ABCDEFGHIJKLMNOPQRSTUVWXYZ" for c in positions):
+                        raise ValueError("Invalid final positions")
+                    response["windows"] = [ord(c)-65 for c in positions]
                 return True, response
-                
-            except json.JSONDecodeError:
-                return False, {"error": f"Invalid JSON response: {response_line}"}
-                
-        except serial.SerialException as e:
+            raise TimeoutError("Board response timed out; reconnect and reapply settings")
+        except (serial.SerialException, OSError, ValueError, TimeoutError) as exc:
             self.disconnect()
-            return False, {"error": f"Serial error: {str(e)}"}
-        except Exception as e:
-            return False, {"error": f"Unexpected error: {str(e)}"}
-    
-    def ping(self) -> Tuple[bool, Dict]:
-        """
-        Send PING command to verify connection
-        Returns: (success, response)
-        """
-        return self.send_command({"cmd": "ping"})
-    
-    def configure(self, rotors: List[int], windows: List[int], 
-                  rings: List[int], plugboard: List[str] = None) -> Tuple[bool, Dict]:
-        """
-        Configure Enigma settings
-        
-        Args:
-            rotors: [left, middle, right] rotor IDs (0-4)
-            windows: [left, middle, right] positions (0-25)
-            rings: [left, middle, right] ring settings (0-25)
-            plugboard: List of pairs like ["AB", "CD"] (optional)
-        
-        Returns: (success, response)
-        """
-        cmd = {
-            "cmd": "config",
-            "rotors": rotors,
-            "windows": windows,
-            "rings": rings
-        }
-        
-        if plugboard:
-            cmd["plugboard"] = plugboard
-        
-        return self.send_command(cmd)
-    
-    def encrypt(self, message: str) -> Tuple[bool, Dict]:
-        """
-        Encrypt a message
-        Returns: (success, response with 'result' and 'windows')
-        """
-        cmd = {
-            "cmd": "encrypt",
-            "message": message
-        }
-        return self.send_command(cmd)
-    
-    def decrypt(self, message: str) -> Tuple[bool, Dict]:
-        """
-        Decrypt a message (same as encrypt in Enigma)
-        Returns: (success, response with 'result' and 'windows')
-        """
-        cmd = {
-            "cmd": "decrypt",
-            "message": message
-        }
-        return self.send_command(cmd)
-    
-    def reset(self) -> Tuple[bool, Dict]:
-        """
-        Reset board to default state
-        Returns: (success, response)
-        """
+            return False, {"error": str(exc)}
+
+    def ping(self):
+        return self.send_command({"cmd": "hello"})
+
+    def configure(self, rotors, windows, rings, plugboard=None):
+        return self.send_command({"cmd": "configure", "rotors": [self.ROTORS[i] for i in rotors],
+                                  "positions": ''.join(chr(65+i) for i in windows),
+                                  "rings": ''.join(chr(65+i) for i in rings), "plugs": plugboard or []})
+
+    def encrypt(self, message):
+        return self.send_command({"cmd": "process", "mode": "encrypt", "text": message})
+
+    def decrypt(self, message):
+        return self.send_command({"cmd": "process", "mode": "decrypt", "text": message})
+
+    def reset(self):
         return self.send_command({"cmd": "reset"})
-    
-    def get_status(self) -> Tuple[bool, Dict]:
-        """
-        Get board status
-        Returns: (success, response with 'ready', 'state_certain', 'windows')
-        """
+
+    def get_status(self):
         return self.send_command({"cmd": "status"})
+
+    def selftest(self):
+        return self.send_command({"cmd": "selftest"})

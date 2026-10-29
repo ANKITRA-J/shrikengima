@@ -1,0 +1,197 @@
+{
+  "status": "Final firmware flashed; hardware acceptance and GUI hardware tests passed",
+  "fpga_build_date": "2026-10-29",
+  "final_flash_and_acceptance_date": "2026-10-30",
+  "timezone": "Asia/Kolkata",
+  "tool": "Go Configure 6.55.002 / Yosys v59 / placer v23",
+  "target": "SLG47910V Rev BB",
+  "format": "vendor MCU SPI image",
+  "image": "firmware/enigma_shrike/data/fpga_bitstream.bin",
+  "bytes": 46408,
+  "sha256": "67d960a4b49e3e0267ccdc72497e83378ef52d94d93b6d0f190980118592c2fd",
+  "clbs": 136,
+  "clbs_available": 140,
+  "lut5s": 799,
+  "lut5s_available": 1120,
+  "flip_flops": 361,
+  "oscillator_hz": 50000000,
+  "core_hz": 3125000,
+  "clock_route": "OSC / 16 -> REF_LOGIC_AS_CLK1 -> LOGIC_AS_CLK1 (enabled)",
+  "uart_clocks_per_bit": 27,
+  "mcu_uart_baud": 115200,
+  "timing_wns_ps": 15059,
+  "timing_tns_ps": 0,
+  "firmware": {
+    "esp32_arduino_core": "3.3.12",
+    "arduino_json": "6.21.5",
+    "fqbn": "esp32:esp32:esp32s3:CDCOnBoot=cdc,FlashSize=8M,PartitionScheme=default_8MB",
+    "littlefs_offset": "0x670000",
+    "littlefs_size": "0x180000"
+  },
+  "hardware": {
+    "board": "Shrike Fi",
+    "mcu": "ESP32-S3 revision 0.2",
+    "flash_bytes": 8388608,
+    "mcu_uart_tx_gpio": 11,
+    "fpga_uart_rx_gpio": 5,
+    "fpga_uart_rx_package_pin": 18,
+    "mcu_uart_rx_gpio": 13,
+    "fpga_uart_tx_gpio": 6,
+    "fpga_uart_tx_package_pin": 19,
+    "mcu_led_gpio": 21,
+    "fpga_led_gpio": 16
+  },
+  "validation": {
+    "all_60_rotor_orders": "passed on final firmware",
+    "gui_connect_encrypt_decrypt_reset": "passed on final firmware",
+    "final_firmware_extra_stress_rounds": 5,
+    "final_firmware_extra_stress_letter_transforms": 5120,
+    "prior_same_fpga_image_stress_rounds": 30,
+    "prior_same_fpga_image_stress_letter_transforms": 30720,
+    "notes": "Stress compares randomized 512-letter messages and reciprocal decryption against the Python test oracle. Prior stress preceded final malformed reset/state error-handling hardening. Logs are retained in this directory."
+  },
+  "firmware_build": {
+    "build/firmware/enigma_shrike.ino.bin": {
+      "bytes": 934800,
+      "sha256": "4aba4103712822372be8fd19798eea3d149ec3bedf06b2148f7cd8d86549bee3"
+    },
+    "build/firmware/enigma_shrike.ino.bootloader.bin": {
+      "bytes": 19968,
+      "sha256": "883bb1e4765f12902e56b4bb901d0504df2ea2396bba8d79a7b29ae87d4b3658"
+    },
+    "build/firmware/enigma_shrike.ino.partitions.bin": {
+      "bytes": 3072,
+      "sha256": "1d9cca96de0fe07ad7fc0648b9878ddecd9ce565e38b589ad20fea698ed4c80c"
+    },
+    "build/firmware/boot_app0.bin": {
+      "bytes": 8192,
+      "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0"
+    },
+    "build/firmware/littlefs.bin": {
+      "bytes": 1572864,
+      "sha256": "b8736628d1e51d6476313cfc0d06295530ef15eb8cb5ad27815a73377fad591f"
+    }
+  },
+  "source_files": {
+    "desktop/enigma_gui.py": {
+      "bytes": 807,
+      "sha256": "7a066fcb8cef3c160aedeb608b0c571da9dc566052300c889db171cd789ed1cd"
+    },
+    "desktop/enigma_model.py": {
+      "bytes": 6247,
+      "sha256": "ea5ae880cbc9111801d2572e9ad521b9659313d4ab0bd5f1c87f162fd31458fb"
+    },
+    "desktop/main_window.py": {
+      "bytes": 22173,
+      "sha256": "b55c7df2e3562bb7d3db88e971e8f0fe1e2317a54fb9c54bf74ed17ee6c9ad2f"
+    },
+    "desktop/serial_manager.py": {
+      "bytes": 5314,
+      "sha256": "d65e2a2ef8cee7594582fac56390a9e2064f6ff0a3b8a4de55eb944a873eb2a8"
+    },
+    "desktop/settings_manager.py": {
+      "bytes": 3212,
+      "sha256": "c0b06a88b6149adcdca81de39137f8046699cdabc374cb42b825ab625a95b552"
+    },
+    "firmware/enigma_shrike/board_config.h": {
+      "bytes": 4741,
+      "sha256": "b1612f1a71b698b5c55c85884285dc82aaeebf6d7fbd5405745b9195be7f8051"
+    },
+    "firmware/enigma_shrike/enigma_shrike.ino": {
+      "bytes": 1265,
+      "sha256": "709a5f5d90d8586f677c81f72015273879dedfcc2017a68121868a9b89552349"
+    },
+    "firmware/enigma_shrike/fpga_loader.cpp": {
+      "bytes": 2679,
+      "sha256": "b4e5cd32947c7f6831853a59acfbd2c822fd3d26042fb44669b27b97f6899fe2"
+    },
+    "firmware/enigma_shrike/fpga_loader.h": {
+      "bytes": 1153,
+      "sha256": "05c91efbe6c1ad05b26fcf15203df745f9fb7cfe9673de437bb571c4e04d3a4f"
+    },
+    "firmware/enigma_shrike/plugboard.cpp": {
+      "bytes": 2628,
+      "sha256": "73a1bd41300ca817bd9150b603bdfe055825506df95e55746848578424ba0d09"
+    },
+    "firmware/enigma_shrike/plugboard.h": {
+      "bytes": 1429,
+      "sha256": "02096ea6998a1093a5167e507536207fd517134c484617570c7713aaa7235cf2"
+    },
+    "firmware/enigma_shrike/selftest.cpp": {
+      "bytes": 7503,
+      "sha256": "87f1787abbe8ef7cf35401c6c22512b59e9dd905ebbfa44f56a794a4759f0398"
+    },
+    "firmware/enigma_shrike/selftest.h": {
+      "bytes": 1286,
+      "sha256": "4f454fa508baacf4fa499d53284ecebfce696585b1e3b159ab007e38ba95cc1b"
+    },
+    "firmware/enigma_shrike/uart_protocol.cpp": {
+      "bytes": 9191,
+      "sha256": "39a21eb15467fb17846e76ba41b79123261378c8ebbff5f743d916f4c25de401"
+    },
+    "firmware/enigma_shrike/uart_protocol.h": {
+      "bytes": 2140,
+      "sha256": "67034424e6c0d28e1fbeacbbb91064bea906f8daa8ad77d58a51ee2b01204115"
+    },
+    "firmware/enigma_shrike/usb_protocol.cpp": {
+      "bytes": 9946,
+      "sha256": "a3d2927b70c37c10e034387bd2430eadb961d2cc9f31f38e8a66bbfec4d923bb"
+    },
+    "firmware/enigma_shrike/usb_protocol.h": {
+      "bytes": 418,
+      "sha256": "5bb8527963d2db332b7eac046465e199139fc734dcb732f2660db7ef2f04e83d"
+    },
+    "fpga/rtl/crc8.v": {
+      "bytes": 870,
+      "sha256": "08567ce4329cadb2c46849863992d4b79fe445578cb7baddd48a20035edde2e0"
+    },
+    "fpga/rtl/enigma_core.v": {
+      "bytes": 7877,
+      "sha256": "1a36d0f5785fb62bad0866ab0408c33ec3ebddef88a34ec0c43d3784b9797fcf"
+    },
+    "fpga/rtl/enigma_top.v": {
+      "bytes": 3597,
+      "sha256": "add70129fba9f762c391fdf38b9edd0a6dfe4707bb4356c088f4117914178a1c"
+    },
+    "fpga/rtl/helpers.v": {
+      "bytes": 746,
+      "sha256": "2da9fd272a8022084199fc810bb7557d02c685b341405aa330005d46933a6aaf"
+    },
+    "fpga/rtl/led_controller.v": {
+      "bytes": 861,
+      "sha256": "8da3ef970fadec62323f116934b25f899f5529b7d1826147e0f9b3c5e6ffda69"
+    },
+    "fpga/rtl/packet_wrapper.v": {
+      "bytes": 13399,
+      "sha256": "1d9d8964683a308cd6763684e89e6b78061b59e911382809fe6f06712816e62a"
+    },
+    "fpga/rtl/rotor_rom.v": {
+      "bytes": 4924,
+      "sha256": "f243c9f4b82b9652ab65a7254c67017328d04d54d0518d27a59b9e25408803ab"
+    },
+    "fpga/rtl/uart_rx.v": {
+      "bytes": 2972,
+      "sha256": "11cba6a2eae94966f3f6ccba125a8addb6153ea93982482f09f029dc329e0cb3"
+    },
+    "fpga/rtl/uart_tx.v": {
+      "bytes": 2140,
+      "sha256": "33fb3eec401a5be4c299d4cb1541af993d570276a2d05fe82c470b5cb0eb9575"
+    },
+    "fpga/project/enigma/ffpga/src/main.v": {
+      "bytes": 37426,
+      "sha256": "0b398e04dfc2ad529255e34a717b36763cb4d5e870d450fd1cf2b66670db0ef5"
+    },
+    "fpga/project/enigma/enigma.ffpga": {
+      "bytes": 54415,
+      "sha256": "62ade884cea0e3e29ccaa650e515685c27d038cf8dd6e2f60f6d556aebc44b21"
+    },
+    "fpga/project/enigma/pins.csv": {
+      "bytes": 23070,
+      "sha256": "b5914719198ddc2a22791bedd56109f4bdb2d2596262ca673a1300c8e93f786d"
+    },
+    "fpga/project/enigma/ffpga/timing-constraints/clocks.sdc": {
+      "bytes": 219,
+      "sha256": "e857308ce3178d77ecc2aea46cd7d198cfd63ae9358d0d707fb2f9038a16ae26"
+    }
+  }
+}

@@ -1,0 +1,10 @@
+Connected to /dev/cu.usbmodem101 (FPGA verified)
+Self-test: {'ok': True, 'final_positions': 'AAA', 'id': 1, 'windows': [0, 0, 0]}
+PASS: all 60 rotor orders and reciprocal processing
+PASS: 5 stress rounds / 5120 extra FPGA letters
+PASS: 10 stress rounds / 10240 extra FPGA letters
+PASS: 15 stress rounds / 15360 extra FPGA letters
+PASS: 20 stress rounds / 20480 extra FPGA letters
+PASS: 25 stress rounds / 25600 extra FPGA letters
+PASS: 30 stress rounds / 30720 extra FPGA letters
+PASS: hardware self-test, all 60 rotor orders, rings, plugs, reciprocal processing, 512-byte boundary, validation, reset

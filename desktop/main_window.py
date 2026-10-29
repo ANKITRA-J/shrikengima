@@ -7,12 +7,27 @@ from PySide6.QtWidgets import (
     QLabel, QComboBox, QPushButton, QTextEdit, QPlainTextEdit,
     QGroupBox, QListWidget, QInputDialog, QMessageBox, QStatusBar
 )
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, QThread, Signal
 from PySide6.QtGui import QFont
 
 from enigma_model import EnigmaModel
 from serial_manager import SerialManager
 from settings_manager import SettingsManager
+
+
+class BoardJob(QThread):
+    result_ready = Signal(object)
+
+    def __init__(self, task, parent):
+        super().__init__(parent)
+        self.task = task
+
+    def run(self):
+        try:
+            result = self.task()
+        except Exception as exc:
+            result = (False, {"error": str(exc)})
+        self.result_ready.emit(result)
 
 
 class MainWindow(QMainWindow):
@@ -24,6 +39,7 @@ class MainWindow(QMainWindow):
         self.model = model
         self.serial = serial
         self.settings = settings
+        self.job = None
         
         self.setWindowTitle("Shrike Fi Enigma")
         self.setMinimumSize(700, 800)
@@ -32,7 +48,7 @@ class MainWindow(QMainWindow):
         self.init_ui()
         
         # Load saved settings
-        self.load_settings()
+        # Settings remain volatile unless explicitly exported.
         
         # Update UI state
         self.update_connection_state()
@@ -44,6 +60,9 @@ class MainWindow(QMainWindow):
         
         main_layout = QVBoxLayout(central_widget)
         
+        self.status_bar = QStatusBar()
+        self.setStatusBar(self.status_bar)
+
         # Connection section
         conn_group = self.create_connection_section()
         main_layout.addWidget(conn_group)
@@ -56,10 +75,7 @@ class MainWindow(QMainWindow):
         message_group = self.create_message_section()
         main_layout.addWidget(message_group)
         
-        # Status bar
-        self.status_bar = QStatusBar()
-        self.setStatusBar(self.status_bar)
-        self.status_bar.showMessage("Ready")
+        # Keep port-discovery messages from the existing status bar.
     
     def create_connection_section(self) -> QGroupBox:
         """Create connection controls"""
@@ -235,6 +251,9 @@ class MainWindow(QMainWindow):
         self.reset_btn = QPushButton("Reset Board")
         self.reset_btn.clicked.connect(self.reset_board)
         btn_layout.addWidget(self.reset_btn)
+        self.selftest_btn = QPushButton("Hardware Self-test")
+        self.selftest_btn.clicked.connect(self.selftest_board)
+        btn_layout.addWidget(self.selftest_btn)
         
         layout.addLayout(btn_layout)
         
@@ -270,19 +289,31 @@ class MainWindow(QMainWindow):
                 QMessageBox.warning(self, "No Port", "Please select a serial port")
                 return
             
-            success, msg = self.serial.connect(port_name)
-            if success:
-                self.update_connection_state()
-                self.status_bar.showMessage(msg, 3000)
-                
-                # Get initial status
-                success, status = self.serial.get_status()
-                if success and "windows" in status:
-                    windows = status["windows"]
-                    self.update_window_display(windows)
-            else:
-                QMessageBox.critical(self, "Connection Failed", msg)
-    
+            def complete(result):
+                success, message = result
+                if success:
+                    self.status_bar.showMessage(message, 3000)
+                else:
+                    QMessageBox.critical(self, "Connection Failed", str(message))
+            self.run_job(lambda: self.serial.connect(port_name), complete)
+
+    def run_job(self, task, callback):
+        if self.job is not None:
+            return
+        self.centralWidget().setEnabled(False)
+        self.setCursor(Qt.WaitCursor)
+        self.job = BoardJob(task, self)
+        self.job.result_ready.connect(callback)
+        self.job.finished.connect(self.finish_job)
+        self.job.start()
+
+    def finish_job(self):
+        self.job.deleteLater()
+        self.job = None
+        self.centralWidget().setEnabled(True)
+        self.setCursor(Qt.ArrowCursor)
+        self.update_connection_state()
+
     def update_connection_state(self):
         """Update UI based on connection state"""
         connected = self.serial.is_connected()
@@ -302,6 +333,7 @@ class MainWindow(QMainWindow):
         self.encrypt_btn.setEnabled(connected)
         self.decrypt_btn.setEnabled(connected)
         self.reset_btn.setEnabled(connected)
+        self.selftest_btn.setEnabled(connected)
     
     def apply_configuration(self):
         """Apply current configuration to board"""
@@ -337,17 +369,16 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Invalid Configuration", msg)
             return
         
-        # Send to board
-        success, response = self.serial.configure(rotors, windows, rings, plugboard)
-        
-        if success:
-            self.status_bar.showMessage("Configuration applied", 3000)
-            if "windows" in response:
-                self.update_window_display(response["windows"])
-        else:
-            error = response.get("error", "Unknown error")
-            QMessageBox.critical(self, "Configuration Failed", error)
-    
+        def complete(result):
+            success, response = result
+            if success:
+                self.status_bar.showMessage("Configuration applied", 3000)
+                if "windows" in response:
+                    self.update_window_display(response["windows"])
+            else:
+                QMessageBox.critical(self, "Configuration Failed", response.get("error", "Unknown error"))
+        self.run_job(lambda: self.serial.configure(rotors, windows, rings, plugboard), complete)
+
     def encrypt_message(self):
         """Encrypt input message"""
         self.process_message("encrypt")
@@ -363,64 +394,76 @@ class MainWindow(QMainWindow):
             return
         
         message = self.input_text.toPlainText()
-        if not message:
-            QMessageBox.information(self, "No Message", "Please enter a message")
+        try:
+            message = EnigmaModel.normalize_message(message)
+        except ValueError as exc:
+            QMessageBox.warning(self, "Invalid Message", str(exc))
             return
-        
-        # Normalize message
-        message = EnigmaModel.normalize_message(message)
-        if not message:
-            QMessageBox.warning(self, "Invalid Message", "Message must contain at least one letter")
-            return
-        
+        self.output_text.clear()
+
         # Process
         self.status_bar.showMessage(f"{operation.capitalize()}ing...", 0)
         self.setCursor(Qt.WaitCursor)
         
-        if operation == "encrypt":
-            success, response = self.serial.encrypt(message)
-        else:
-            success, response = self.serial.decrypt(message)
-        
-        self.setCursor(Qt.ArrowCursor)
-        
-        if success:
-            result = response.get("result", "")
-            self.output_text.setPlainText(result)
-            self.status_bar.showMessage(f"{operation.capitalize()}ion complete", 3000)
-            
-            if "windows" in response:
-                self.update_window_display(response["windows"])
-        else:
-            error = response.get("error", "Unknown error")
-            QMessageBox.critical(self, f"{operation.capitalize()} Failed", error)
-            self.status_bar.showMessage("Error", 3000)
-    
+        rotors = [self.rotor_left_combo.currentIndex(), self.rotor_middle_combo.currentIndex(), self.rotor_right_combo.currentIndex()]
+        windows = [self.window_left_combo.currentIndex(), self.window_middle_combo.currentIndex(), self.window_right_combo.currentIndex()]
+        rings = [self.ring_left_combo.currentIndex(), self.ring_middle_combo.currentIndex(), self.ring_right_combo.currentIndex()]
+        plugs = [self.plugboard_list.item(i).text() for i in range(self.plugboard_list.count())]
+        def task():
+            success, response = self.serial.configure(rotors, windows, rings, plugs)
+            if success:
+                return self.serial.encrypt(message) if operation == "encrypt" else self.serial.decrypt(message)
+            return success, response
+        def complete(result):
+            success, response = result
+            if success:
+                self.output_text.setPlainText(response.get("result", ""))
+                self.status_bar.showMessage("Message processed on FPGA", 3000)
+                if "windows" in response:
+                    self.update_window_display(response["windows"])
+            else:
+                QMessageBox.critical(self, "Processing Failed", response.get("error", "Unknown error"))
+                self.status_bar.showMessage("Error", 3000)
+        self.run_job(task, complete)
+
     def clear_messages(self):
         """Clear input and output"""
         self.input_text.clear()
         self.output_text.clear()
     
     def reset_board(self):
-        """Reset board to default state"""
+        """Reset hardware and visible controls together without blocking Qt."""
         if not self.serial.is_connected():
             return
-        
-        reply = QMessageBox.question(
-            self, "Reset Board",
-            "Reset board to default configuration?",
-            QMessageBox.Yes | QMessageBox.No
-        )
-        
-        if reply == QMessageBox.Yes:
-            success, response = self.serial.reset()
+        def complete(result):
+            success, response = result
+            if not success:
+                QMessageBox.critical(self, "Reset Failed", response.get("error", "Unknown error"))
+                return
+            self.model.set_rotors(0, 1, 2)
+            self.model.set_windows(0, 0, 0)
+            self.model.set_rings(0, 0, 0)
+            for i, side in enumerate(("left", "middle", "right")):
+                getattr(self, f"rotor_{side}_combo").setCurrentIndex(i)
+                getattr(self, f"window_{side}_combo").setCurrentIndex(0)
+                getattr(self, f"ring_{side}_combo").setCurrentIndex(0)
+            self.clear_plugboard()
+            self.output_text.clear()
+            self.update_window_display([0, 0, 0])
+            self.status_bar.showMessage("Board and settings reset to I–II–III / AAA", 5000)
+        self.run_job(self.serial.reset, complete)
+
+    def selftest_board(self):
+        if not self.serial.is_connected():
+            return
+        def complete(result):
+            success, response = result
             if success:
-                self.status_bar.showMessage("Board reset", 3000)
-                self.window_display.setText("A A A")
+                self.status_bar.showMessage("FPGA hardware self-test passed", 5000)
             else:
-                error = response.get("error", "Unknown error")
-                QMessageBox.critical(self, "Reset Failed", error)
-    
+                QMessageBox.critical(self, "Self-test Failed", response.get("error", "Unknown error"))
+        self.run_job(self.serial.selftest, complete)
+
     def add_plugboard_pair(self):
         """Add plugboard pair dialog"""
         text, ok = QInputDialog.getText(
@@ -458,11 +501,6 @@ class MainWindow(QMainWindow):
             letters = [EnigmaModel.position_to_letter(w) for w in windows]
             self.window_display.setText(f"{letters[0]}  {letters[1]}  {letters[2]}")
             
-            # Also update combo boxes
-            self.window_left_combo.setCurrentIndex(windows[0])
-            self.window_middle_combo.setCurrentIndex(windows[1])
-            self.window_right_combo.setCurrentIndex(windows[2])
-    
     def load_settings(self):
         """Load saved settings"""
         # Load last port
@@ -526,7 +564,11 @@ class MainWindow(QMainWindow):
     
     def closeEvent(self, event):
         """Handle window close"""
-        self.save_settings()
+        if self.job is not None:
+            event.ignore()
+            self.status_bar.showMessage("Wait for the board operation to finish before closing", 3000)
+            return
+        # Do not persist message keys automatically.
         if self.serial.is_connected():
             self.serial.disconnect()
         event.accept()

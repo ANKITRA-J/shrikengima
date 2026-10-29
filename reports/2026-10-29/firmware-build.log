@@ -1,0 +1,4 @@
+Sketch uses 934645 bytes (27%) of program storage space. Maximum is 3342336 bytes.
+Global variables use 49636 bytes (15%) of dynamic memory, leaving 278044 bytes for local variables. Maximum is 327680 bytes.
+/fpga_bitstream.bin
+Built firmware and filesystem in /Users/aayush/Documents/shrikengima/build/firmware; filesystem offset 0x670000, size 0x180000

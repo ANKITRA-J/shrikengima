@@ -45,3 +45,9 @@ firmware/enigma_shrike/build/
 fpga/sim/*.vcd
 fpga/sim/*.out
 fpga/sim/*.log
+
+# Reproducible local builds
+/build/
+fpga/project/enigma/ffpga/build/
+
+.venv/

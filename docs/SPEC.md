@@ -1,5 +1,7 @@
 # Shrike Fi Enigma Implementation Specification
 
+> Historical design specification (22 October 2026). For the working implementation, verified pin mapping, tested build and current setup commands, use [README.md](../README.md), [BUILD_AND_USE.md](BUILD_AND_USE.md) and [STATUS.md](../STATUS.md). Statements below describing incomplete code and pending acceptance gates record the original starting point.
+
 Version 1.0 | 22 October 2026 | Implementation handoff for an AI coding IDE
 
 ## 1 Purpose and required outcome
