@@ -1,8 +1,0 @@
-Traceback (most recent call last):
-  File "/Users/aayush/Documents/shrikengima/tests/hardware_test.py", line 51, in <module>
-    main()
-  File "/Users/aayush/Documents/shrikengima/tests/hardware_test.py", line 23, in main
-    require(client.connect(args.port))
-  File "/Users/aayush/Documents/shrikengima/tests/hardware_test.py", line 15, in require
-    raise AssertionError(value)
-AssertionError: FPGA not ready: Image transferred; UART verification required; PING test failed

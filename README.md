@@ -77,4 +77,4 @@ To change the FPGA, edit `fpga/rtl/`, run `python3 tools/gen_fpga_files.py` and 
 | [docs/SPEC.md](docs/SPEC.md) | USB JSON and MCU–FPGA UART contracts |
 | [STATUS.md](STATUS.md) | Verified results, limitations and hardware corrections |
 
-The FPGA activity LED and MCU status LED are built into the board. This project implements Enigma encryption/decryption; a Bombe-style key-search/cracking engine is not implemented. Historical stage reports and `IMPLEMENTATION_COMPLETE.md` are superseded by STATUS.md and the current build guide.
+The FPGA activity LED and MCU status LED are built into the board. This project implements Enigma encryption/decryption; a Bombe-style key-search/cracking engine is not implemented. Current setup instructions are in the build guide; verified results are in STATUS.md.

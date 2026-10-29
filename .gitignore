@@ -51,3 +51,6 @@ fpga/sim/*.log
 fpga/project/enigma/ffpga/build/
 
 .venv/
+
+# Local agent planning notes
+.agents/
